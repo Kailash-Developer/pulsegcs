@@ -1,0 +1,15 @@
+<RCC>
+    <qresource prefix="/Custom/res">
+        <file alias="PulseGCS/pulsegcs-mark.svg">res/PulseGCS/pulsegcs-mark.svg</file>
+        <file alias="PulseGCS/pulsegcs-mark-watermark.svg">res/PulseGCS/pulsegcs-mark-watermark.svg</file>
+        <file alias="PulseGCS/pulsegcs-mark-arcs.svg">res/PulseGCS/pulsegcs-mark-arcs.svg</file>
+        <file alias="PulseGCS/pulsegcs-mark-core.svg">res/PulseGCS/pulsegcs-mark-core.svg</file>
+        <file alias="PulseGCS/pulsegcs-mark-color.png">res/PulseGCS/pulsegcs-mark-color.png</file>
+    </qresource>
+    <qresource prefix="/Custom/qml/PulseGCS">
+        <file alias="SplashScreen.qml">qml/PulseGCS/SplashScreen.qml</file>
+        <file alias="PulseGCSMark.qml">qml/PulseGCS/PulseGCSMark.qml</file>
+        <file alias="PulseGCSWatermark.qml">qml/PulseGCS/PulseGCSWatermark.qml</file>
+        <file alias="qmldir">qml/PulseGCS/qmldir</file>
+    </qresource>
+</RCC>
