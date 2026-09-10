@@ -162,7 +162,9 @@ jint JNI_OnLoad(JavaVM* vm, void*)
     AndroidSerial::setNativeMethods();
 #endif
 
+#ifndef QGC_CUSTOM_BUILD
     QNativeInterface::QAndroidApplication::hideSplashScreen(333);
+#endif
 
     return JNI_VERSION_1_6;
 }

@@ -8,25 +8,21 @@ Item {
     id: root
     anchors.fill: parent
     z: 100000
+    opacity: exitOpacity
 
     signal splashCompleted()
+
+    function _finishSplash() {
+        root.splashCompleted()
+    }
 
     property bool isPlaying: true
     readonly property bool reducedMotion: typeof Qt.styleHints !== "undefined"
                                         && Qt.styleHints.preferReducedMotion === true
     readonly property int editionIndex: 0
 
-    function _parseVersionBuild() {
-        var cleaned = QGroundControl.qgcVersion.replace(/ \d+ bit$/, "")
-        var ver = cleaned.match(/v?\d+\.\d+\.\d+/)
-        var build = cleaned.match(/-([0-9]+)-g[0-9a-f]+$/)
-        return {
-            version: ver ? (ver[0].startsWith("v") ? ver[0] : "v" + ver[0]) : cleaned,
-            build: build ? build[1] : String(QGroundControl.qgcAppDate).slice(0, 10)
-        }
-    }
-    property string appVersion: _parseVersionBuild().version
-    property string buildNumber: _parseVersionBuild().build
+    property string appVersion: PulseGCSStartupController.appVersion
+    property string buildNumber: PulseGCSStartupController.buildNumber
     property string poweredByLabel: "POWERED BY"
     property string vendorLabel: "SKYX AEROSPACE"
     property string statusTime: _clock.timeString
@@ -53,7 +49,7 @@ Item {
             durationMs = 120
             root.currentTimestampMs = root.totalDuration
             root.isPlaying = false
-            root.splashCompleted()
+            root._finishSplash()
         }
     }
 
@@ -67,16 +63,16 @@ Item {
     ]
     readonly property var currentEdition: root.editions[root.editionIndex]
 
-    readonly property color groundColor: "#071A2B"        // Flat deep navy ground (#071A2B)
-    readonly property color watermarkColor: "#0D2A40"     // Background watermark symbol (#0D2A40)
-    readonly property color arcColor: "#EAF2F7"           // Arcs stroke signal white (#EAF2F7)
-    readonly property color wordmarkPulseColor: "#EAF2F7" // "Pulse" typography (#EAF2F7)
-    readonly property color statusColor: "#7E96AB"        // Status bar text (#7E96AB)
-    readonly property color ruleColor: "#1E3B52"          // 1px dividing rule (#1E3B52)
-    readonly property color endorsementDimColor: "#7E96AB"// "POWERED BY" (#7E96AB)
-    readonly property color endorsementLitColor: "#EAF2F7"// "SKYX AEROSPACE" (#EAF2F7)
-    readonly property color metaDimColor: "#5E778C"       // "VERSION" / "BUILD" labels (#5E778C)
-    readonly property color metaLitColor: "#EAF2F7"       // "v2.4.1" / "3120" values (#EAF2F7)
+    readonly property color groundColor: "#071A2B"
+    readonly property color watermarkColor: "#0D2A40"
+    readonly property color arcColor: "#EAF2F7"
+    readonly property color wordmarkPulseColor: "#EAF2F7"
+    readonly property color statusColor: "#7E96AB"
+    readonly property color ruleColor: "#1E3B52"
+    readonly property color endorsementDimColor: "#7E96AB"
+    readonly property color endorsementLitColor: "#EAF2F7"
+    readonly property color metaDimColor: "#5E778C"
+    readonly property color metaLitColor: "#EAF2F7"
 
     // TIMING (HTML saved_resource.html — scales with durationMs)
     property int durationMs: 1400
@@ -162,6 +158,12 @@ Item {
         if (root.reducedMotion) return 1.0
         return root.lerpFrac(root.normalizedProgress, root.frac(960), root.frac(1120), root.easeSmooth)
     }
+    readonly property real exitOpacity: {
+        if (root.reducedMotion) return 1.0
+        var exitStart = root.frac(1250)
+        if (root.normalizedProgress <= exitStart) return 1.0
+        return 1.0 - root.lerpFrac(root.normalizedProgress, exitStart, 1.0, root.easeSmooth)
+    }
 
     // Animation Driver Timer (60/120 Hz update)
     Timer {
@@ -175,7 +177,7 @@ Item {
             if (next >= root.totalDuration) {
                 root.currentTimestampMs = root.totalDuration;
                 root.isPlaying = false;
-                root.splashCompleted();
+                root._finishSplash();
             } else {
                 root.currentTimestampMs = next;
             }
@@ -452,4 +454,4 @@ Item {
             }
         }
     }
-}
+

@@ -83,7 +83,7 @@
                 android:resource="@drawable/splashscreen" />
             <meta-data
                 android:name="android.app.splash_screen_sticky"
-                android:value="false" />
+                android:value="true" />
         </activity>
 
         <provider

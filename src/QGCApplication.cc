@@ -303,7 +303,11 @@ void QGCApplication::_initForNormalAppBoot()
     AudioOutput::instance()->init(SettingsManager::instance()->appSettings()->audioVolume(),
                                   SettingsManager::instance()->appSettings()->audioMuted());
     FollowMe::instance()->init();
+#ifndef QGC_CUSTOM_BUILD
     QGCPositionManager::instance()->init();
+#else
+    // PulseGCS: location permission is requested after splash (CustomPlugin).
+#endif
     NTRIPManager::instance()->init();
     LinkManager::instance()->init();
     VideoManager::instance()->init(mainRootWindow());

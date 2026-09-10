@@ -31,6 +31,11 @@ QGCPositionManager *QGCPositionManager::instance()
 
 void QGCPositionManager::init()
 {
+    if (_initCalled) {
+        return;
+    }
+    _initCalled = true;
+
     if (QGC::runningUnitTests()) {
         _simulatedSource = new SimulatedPosition(this);
         _setPositionSource(QGCPositionSource::Simulated);

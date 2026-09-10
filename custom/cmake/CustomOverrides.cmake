@@ -18,6 +18,10 @@ set(QGC_APP_COPYRIGHT "Copyright (c) ${_copyright_year} PulseGCS. All rights res
 set(QGC_PACKAGE_NAME "com.pulsegcs.app" CACHE STRING "Package identifier" FORCE)
 set(QGC_ANDROID_PACKAGE_NAME "com.pulsegcs.app" CACHE STRING "Android package identifier" FORCE)
 
+# Splash VERSION line and product identity. Bump the story suffix when the milestone changes.
+# Git.cmake still supplies QGC_APP_VERSION_STR (describe); splash BUILD uses commits-since-tag from that.
+set(PULSEGCS_APP_VERSION "0.0.0-M1-US07" CACHE STRING "PulseGCS product version (splash VERSION)" FORCE)
+
 # ----------------------------------------------------------------------------
 # Custom Application Icons
 # ----------------------------------------------------------------------------

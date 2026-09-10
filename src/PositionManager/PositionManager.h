@@ -77,6 +77,7 @@ private:
 
     bool _usingPluginSource = false;
     int _updateInterval = 0;
+    bool _initCalled = false;
 
     QGeoPositionInfo _geoPositionInfo;
     QGeoPositionInfoSource::Error  _gcsPositioningError = QGeoPositionInfoSource::NoError;

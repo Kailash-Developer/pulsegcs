@@ -64,6 +64,8 @@ set(QGC_RESOURCES ${QGC_RESOURCES} ${CUSTOM_RESOURCES} CACHE STRING "Paths to .q
 set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSStartupController.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSStartupController.h
     CACHE INTERNAL "" FORCE
 )
 
@@ -80,8 +82,11 @@ set(CUSTOM_DEFINITIONS
     QGC_CUSTOM_BUILD
     CUSTOMHEADER="CustomPlugin.h"
     CUSTOMCLASS=CustomPlugin
+    "PULSEGCS_APP_VERSION_STR=\"${PULSEGCS_APP_VERSION}\""
     CACHE INTERNAL "" FORCE
 )
+
+message(STATUS "PulseGCS: product version ${PULSEGCS_APP_VERSION}")
 
 set(CUSTOM_QT_COMPONENTS
     Core

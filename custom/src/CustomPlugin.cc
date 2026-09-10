@@ -1,14 +1,25 @@
 #include "CustomPlugin.h"
+#include "PulseGCSStartupController.h"
 #include "PulseGCSThemeTokens.h"
+#include "PositionManager.h"
 #include "QGCLoggingCategory.h"
 #include "QGCPalette.h"
 
 #include <QtCore/QApplicationStatic>
 #include <QtCore/QFile>
+#include <QtCore/QList>
+#include <QtCore/QPointer>
+#include <QtGui/QColor>
+#include <QtQml/qqml.h>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtQml/QQmlComponent>
+#include <QtQml/QQmlEngine>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
+
+#ifdef Q_OS_ANDROID
+#include <QtGui/QGuiApplication>
+#endif
 
 QGC_LOGGING_CATEGORY(CustomLog, "PulseGCS.CustomPlugin")
 
@@ -53,6 +64,8 @@ QQmlApplicationEngine *CustomPlugin::createQmlApplicationEngine(QObject *parent)
         return nullptr;
     }
 
+    qmlRegisterSingletonInstance("PulseGCS", 1, 0, "PulseGCSStartupController", PulseGCSStartupController::instance());
+
     _urlInterceptor = new CustomOverrideInterceptor();
     _qmlEngine->addUrlInterceptor(_urlInterceptor);
     _qmlEngine->addImportPath(QStringLiteral("qrc:/Custom/qml"));
@@ -63,51 +76,102 @@ QQmlApplicationEngine *CustomPlugin::createQmlApplicationEngine(QObject *parent)
 
 void CustomPlugin::createRootWindow(QQmlApplicationEngine *qmlEngine)
 {
+    auto failOpen = [qmlEngine]() {
+        PulseGCSStartupController::instance()->setActive(false);
+        QGCPositionManager::instance()->init();
+        if (qmlEngine && !qmlEngine->rootObjects().isEmpty()) {
+            if (auto *window = qobject_cast<QQuickWindow *>(qmlEngine->rootObjects().constFirst())) {
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+                window->showFullScreen();
+#else
+                window->setVisible(true);
+#endif
+            }
+        }
+#ifdef Q_OS_ANDROID
+        QNativeInterface::QAndroidApplication::hideSplashScreen(0);
+#endif
+    };
+
+    // Gate prompts and SavedState showFullScreen before MainWindow Component.onCompleted runs.
+    PulseGCSStartupController::instance()->setActive(true);
     QGCCorePlugin::createRootWindow(qmlEngine);
 
     if (!qmlEngine || qmlEngine->rootObjects().isEmpty()) {
-        qCWarning(CustomLog) << "Unable to attach splash overlay: root window not created";
+        qCWarning(CustomLog) << "Root window not created; skipping splash overlay";
+        failOpen();
         return;
     }
 
     QQuickWindow *const mainWindow = qobject_cast<QQuickWindow *>(qmlEngine->rootObjects().constFirst());
     if (!mainWindow) {
-        qCWarning(CustomLog) << "Unable to attach splash overlay: root object is not a QQuickWindow";
+        qCWarning(CustomLog) << "Root object is not a QQuickWindow; skipping splash overlay";
+        failOpen();
         return;
     }
 
-    QQmlComponent splashComponent(qmlEngine, QUrl(QStringLiteral("qrc:/Custom/qml/PulseGCS/SplashScreen.qml")));
+    QQmlComponent splashComponent(
+        qmlEngine,
+        QUrl(QStringLiteral("qrc:/Custom/qml/PulseGCS/SplashScreen.qml")),
+        QQmlComponent::PreferSynchronous);
     if (splashComponent.status() != QQmlComponent::Ready) {
-        qCWarning(CustomLog) << "SplashScreen component not ready:" << splashComponent.errorString();
+        qCWarning(CustomLog) << "SplashScreen not ready:" << splashComponent.errorString();
+        failOpen();
         return;
     }
 
     QObject *const splashObject = splashComponent.create();
-    if (!splashObject) {
-        qCWarning(CustomLog) << "Failed to instantiate SplashScreen";
-        return;
-    }
-
     QQuickItem *const splashItem = qobject_cast<QQuickItem *>(splashObject);
     if (!splashItem) {
-        qCWarning(CustomLog) << "SplashScreen root is not a QQuickItem";
-        splashObject->deleteLater();
+        qCWarning(CustomLog) << "Failed to instantiate SplashScreen overlay";
+        if (splashObject) {
+            splashObject->deleteLater();
+        }
+        failOpen();
         return;
     }
 
-    splashItem->setParentItem(mainWindow->contentItem());
-    splashItem->setWidth(mainWindow->width());
-    splashItem->setHeight(mainWindow->height());
+    QQuickItem *const contentItem = mainWindow->contentItem();
+    QQmlEngine::setObjectOwnership(splashObject, QQmlEngine::CppOwnership);
+    splashObject->setParent(contentItem);
+    splashItem->setParentItem(contentItem);
+    splashItem->setZ(100000);
 
-    QObject::connect(mainWindow, &QQuickWindow::widthChanged, splashItem, [splashItem, mainWindow]() {
-        splashItem->setWidth(mainWindow->width());
-    });
-    QObject::connect(mainWindow, &QQuickWindow::heightChanged, splashItem, [splashItem, mainWindow]() {
-        splashItem->setHeight(mainWindow->height());
-    });
+    QList<QPointer<QQuickItem>> suppressed;
+    if (contentItem) {
+        const QList<QQuickItem *> children = contentItem->childItems();
+        for (QQuickItem *child : children) {
+            if (child && child != splashItem) {
+                suppressed.append(child);
+                child->setOpacity(0);
+            }
+        }
+    }
+
+    mainWindow->setColor(QColor(0x07, 0x1A, 0x2B));
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+    mainWindow->showFullScreen();
+#else
+    mainWindow->setVisible(true);
+#endif
 
     QObject::connect(splashObject, SIGNAL(splashCompleted()), splashObject, SLOT(deleteLater()));
-    qCDebug(CustomLog) << "PulseGCS splash overlay attached to main window";
+    QObject::connect(splashObject, &QObject::destroyed, PulseGCSStartupController::instance(), [suppressed]() {
+        for (const QPointer<QQuickItem> &item : suppressed) {
+            if (item) {
+                item->setOpacity(1);
+            }
+        }
+        PulseGCSStartupController::instance()->setActive(false);
+        QGCPositionManager::instance()->init();
+    });
+
+#ifdef Q_OS_ANDROID
+    // QML splash is mounted and the window is showing it; drop the sticky OS drawable.
+    QNativeInterface::QAndroidApplication::hideSplashScreen(0);
+#endif
+
+    qCDebug(CustomLog) << "Splash overlay attached; MainWindow chrome suppressed until splashCompleted";
 }
 
 void CustomPlugin::destroyQmlApplicationEngine(QQmlApplicationEngine *qmlEngine)
@@ -210,7 +274,7 @@ QUrl CustomOverrideInterceptor::intercept(const QUrl &url, QQmlAbstractUrlInterc
     switch (type) {
     case QQmlAbstractUrlInterceptor::QmlFile:
     case QQmlAbstractUrlInterceptor::UrlString:
-        if (url.scheme() == QStringLiteral("qrc")) {
+        if (url.scheme() == QStringLiteral("qrc") || url.path().startsWith(QLatin1String("/res/"))) {
             const QString origPath = url.path();
             const QString overrideRes = QStringLiteral(":/Custom%1").arg(origPath);
             if (QFile::exists(overrideRes)) {

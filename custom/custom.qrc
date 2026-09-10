@@ -24,6 +24,9 @@
         <file alias="qmldir">qml/PulseGCS/qmldir</file>
     </qresource>
     <qresource prefix="/Custom/qml/QGroundControl">
+        <file alias="MainWindow.qml">qml/QGroundControl/MainWindow.qml</file>
+        <file alias="MainWindowSavedState.qml">qml/QGroundControl/MainWindowSavedState.qml</file>
+        <file alias="MainWindow/MainWindowSavedState.qml">qml/QGroundControl/MainWindowSavedState.qml</file>
         <file alias="Toolbar/SelectViewDropdown.qml">qml/QGroundControl/Toolbar/SelectViewDropdown.qml</file>
         <file alias="Controls/QGCToolBarButton.qml">qml/QGroundControl/Controls/QGCToolBarButton.qml</file>
         <file alias="PlanView/TerrainStatus.qml">qml/QGroundControl/PlanView/TerrainStatus.qml</file>
