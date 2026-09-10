@@ -24,10 +24,10 @@ public:
 
     static QGCCorePlugin *instance();
 
-    // Overrides from QGCCorePlugin for non-invasive asset redirection
     QQmlApplicationEngine *createQmlApplicationEngine(QObject *parent) final;
     void destroyQmlApplicationEngine(QQmlApplicationEngine *qmlEngine) final;
     void createRootWindow(QQmlApplicationEngine *qmlEngine) final;
+    void paletteOverride(const QString &colorName, QGCPalette::PaletteColorInfo_t &colorInfo) final;
 
 private:
     QQmlApplicationEngine *_qmlEngine = nullptr;

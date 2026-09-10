@@ -1,3 +1,4 @@
 module PulseGCS
 PulseGCSMark 1.0 PulseGCSMark.qml
 PulseGCSWatermark 1.0 PulseGCSWatermark.qml
+singleton PulseGCSTokens 1.0 PulseGCSTokens.qml

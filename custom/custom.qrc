@@ -17,6 +17,20 @@
         <file alias="SplashScreen.qml">qml/PulseGCS/SplashScreen.qml</file>
         <file alias="PulseGCSMark.qml">qml/PulseGCS/PulseGCSMark.qml</file>
         <file alias="PulseGCSWatermark.qml">qml/PulseGCS/PulseGCSWatermark.qml</file>
+        <file alias="PulseGCSTokens.qml">qml/PulseGCS/PulseGCSTokens.qml</file>
         <file alias="qmldir">qml/PulseGCS/qmldir</file>
+    </qresource>
+    <qresource prefix="/Custom/qml/QGroundControl">
+        <file alias="Toolbar/SelectViewDropdown.qml">qml/QGroundControl/Toolbar/SelectViewDropdown.qml</file>
+        <file alias="Controls/QGCToolBarButton.qml">qml/QGroundControl/Controls/QGCToolBarButton.qml</file>
+        <file alias="PlanView/TerrainStatus.qml">qml/QGroundControl/PlanView/TerrainStatus.qml</file>
+        <file alias="PlanView/CorridorScanMapVisual.qml">qml/QGroundControl/PlanView/CorridorScanMapVisual.qml</file>
+        <file alias="PlanView/FWLandingPatternMapVisual.qml">qml/QGroundControl/PlanView/FWLandingPatternMapVisual.qml</file>
+        <file alias="PlanView/VTOLLandingPatternMapVisual.qml">qml/QGroundControl/PlanView/VTOLLandingPatternMapVisual.qml</file>
+        <file alias="PlanView/GeoFenceMapVisuals.qml">qml/QGroundControl/PlanView/GeoFenceMapVisuals.qml</file>
+        <file alias="FlightMap/MapItems/QGCMapPolylineVisuals.qml">qml/QGroundControl/FlightMap/MapItems/QGCMapPolylineVisuals.qml</file>
+        <file alias="FlightMap/MapItems/QGCMapPolygonVisuals.qml">qml/QGroundControl/FlightMap/MapItems/QGCMapPolygonVisuals.qml</file>
+        <file alias="LogViewer/LogViewerChart.qml">qml/QGroundControl/LogViewer/LogViewerChart.qml</file>
+        <file alias="Viewer3D/Viewer3DQml/Models3D/Viewer3DVehicleItems.qml">qml/QGroundControl/Viewer3D/Viewer3DQml/Models3D/Viewer3DVehicleItems.qml</file>
     </qresource>
 </RCC>
