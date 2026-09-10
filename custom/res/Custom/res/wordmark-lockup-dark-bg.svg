@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 160">
+  <g transform="translate(10,15) scale(1.25)">
+    <path d="M84.17,19.83 A45.5,45.5 0 0 1 84.17,84.17" fill="none" stroke="#EAF2F7" stroke-width="13"></path>
+    <path d="M19.83,84.17 A45.5,45.5 0 0 1 19.83,19.83" fill="none" stroke="#EAF2F7" stroke-width="13"></path>
+    <path d="M52,35 L69,52 L52,69 L35,52 Z" fill="#00C4DE"></path>
+  </g>
+  <text x="180" y="103" font-family="Arial, Helvetica, sans-serif" font-size="72" letter-spacing="-2" fill="#EAF2F7">Pulse<tspan font-weight="700">GCS</tspan></text>
+</svg>

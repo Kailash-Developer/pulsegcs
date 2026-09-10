@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PulseGCS Orientation Aperture Adaptive Icon Foreground (Locked Identity v1.0) -->
+<!-- Scaled to 66% inside 108x108 safe zone to prevent clipping across circle/squircle masks -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.64"
+        android:scaleY="0.64"
+        android:pivotX="54"
+        android:pivotY="54">
+        <!-- Dual Orientation Arcs in Signal White (#EAF2F7) -->
+        <path
+            android:strokeColor="#EAF2F7"
+            android:strokeWidth="13"
+            android:strokeLineCap="square"
+            android:pathData="M 86.17,21.83 A 45.5,45.5 0 0 1 86.17,86.17" />
+        <path
+            android:strokeColor="#EAF2F7"
+            android:strokeWidth="13"
+            android:strokeLineCap="square"
+            android:pathData="M 21.83,86.17 A 45.5,45.5 0 0 1 21.83,21.83" />
+        <!-- Centered Core Aperture Diamond in Aperture Cyan (#00C4DE) -->
+        <path
+            android:fillColor="#00C4DE"
+            android:pathData="M 54,37 L 71,54 L 54,71 L 37,54 Z" />
+    </group>
+</vector>

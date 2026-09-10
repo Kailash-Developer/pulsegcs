@@ -167,11 +167,26 @@ Qt*-linux*.tar.*
 # Local Development Tools
 # ------------------------------------------------------------------------------
 
-# AI Assistants
+# AI Assistants & Development Context
 .claude/
 .gemini/
 .geminiignore
 .cursorignore
+.cursor/
+.cursorrules
+.windsurf/
+.windsurfrules
+.clinerules
+.clinerules/
+.aider*
+graphify-out/
+docs/context.md
+context.md
+current_implementation.md
+CLAUDE.local.md
+AGENTS.local.md
+COPILOT.md
+GEMINI.md
 
 # Python tooling caches
 .ruff_cache/
@@ -188,3 +203,4 @@ Qt*-linux*.tar.*
 .tool-versions
 .python-version
 !tools/.python-version
+*.keystore

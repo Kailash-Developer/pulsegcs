@@ -28,6 +28,7 @@ if(ANDROID)
             endif()
             file(REMOVE
                 "${FINAL_ANDROID_DIR}/res/drawable/ic_launcher_foreground.png"
+                "${FINAL_ANDROID_DIR}/res/drawable/splashscreen.png"
                 "${FINAL_ANDROID_DIR}/res/mipmap-anydpi-v26/ic_launcher.png"
             )
 

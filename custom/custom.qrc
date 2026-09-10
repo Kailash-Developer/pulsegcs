@@ -5,6 +5,13 @@
         <file alias="PulseGCS/pulsegcs-mark-arcs.svg">res/PulseGCS/pulsegcs-mark-arcs.svg</file>
         <file alias="PulseGCS/pulsegcs-mark-core.svg">res/PulseGCS/pulsegcs-mark-core.svg</file>
         <file alias="PulseGCS/pulsegcs-mark-color.png">res/PulseGCS/pulsegcs-mark-color.png</file>
+        <file alias="wordmark-lockup-dark-bg.svg">res/Custom/res/wordmark-lockup-dark-bg.svg</file>
+        <file alias="wordmark-lockup-light-bg.svg">res/Custom/res/wordmark-lockup-light-bg.svg</file>
+        <file alias="QGCLogoFull.svg">res/Custom/res/QGCLogoFull.svg</file>
+        <file alias="QGCLogoWhite.svg">res/Custom/res/QGCLogoWhite.svg</file>
+        <file alias="qgroundcontrol.ico">res/Custom/res/qgroundcontrol.ico</file>
+        <file alias="icons/pulsegcs.ico">res/icons/pulsegcs.ico</file>
+        <file alias="icons/pulsegcs.svg">res/icons/pulsegcs.svg</file>
     </qresource>
     <qresource prefix="/Custom/qml/PulseGCS">
         <file alias="SplashScreen.qml">qml/PulseGCS/SplashScreen.qml</file>
