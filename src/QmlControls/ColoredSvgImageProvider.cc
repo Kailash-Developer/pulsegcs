@@ -1,5 +1,6 @@
 #include "ColoredSvgImageProvider.h"
 
+#include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 #include <QtCore/QLoggingCategory>
 #include <QtGui/QImage>
@@ -33,6 +34,13 @@ QImage ColoredSvgImageProvider::requestImage(const QString &id, QSize *size, con
         path = QLatin1Char(':') + path;
     } else {
         path = QStringLiteral(":/") + path;
+    }
+
+    if (path.startsWith(QLatin1String(":/"))) {
+        const QString customPath = QStringLiteral(":/Custom") + path.mid(1);
+        if (QFile::exists(customPath)) {
+            path = customPath;
+        }
     }
 
     QColor tint;

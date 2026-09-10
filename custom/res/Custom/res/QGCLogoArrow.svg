@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">
+    <!-- CompassHeadingIndicator.qml needle: NESW compass dialog (#EE3424 / #C72B27) -->
+    <path fill="#C72B27" d="M36 0 L0 72 L36 54 Z"/>
+    <path fill="#EE3424" d="M36 0 L72 72 L36 54 Z"/>
+</svg>
