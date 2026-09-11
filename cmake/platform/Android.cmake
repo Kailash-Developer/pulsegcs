@@ -79,6 +79,12 @@ endif()
 set(ANDROID_VERSION_CODE "${ANDROID_BITNESS_CODE}${CMAKE_PROJECT_VERSION_MAJOR}${CMAKE_PROJECT_VERSION_MINOR}${ANDROID_PATCH_VERSION}${ANDROID_DEV_VERSION}")
 message(STATUS "QGC: Android version code: ${ANDROID_VERSION_CODE}")
 
+if(QGC_CUSTOM_BUILD AND PULSEGCS_APP_VERSION)
+    set(_qgc_android_version_name "${PULSEGCS_APP_VERSION}")
+else()
+    set(_qgc_android_version_name "${CMAKE_PROJECT_VERSION}")
+endif()
+
 # ----------------------------------------------------------------------------
 # Extra Java Sources (CPM-deployed dependencies)
 # ----------------------------------------------------------------------------
@@ -96,7 +102,7 @@ set_target_properties(${CMAKE_PROJECT_NAME}
         QT_ANDROID_COMPILE_SDK_VERSION ${QGC_QT_ANDROID_COMPILE_SDK_VERSION}
         QT_ANDROID_PACKAGE_NAME "${QGC_ANDROID_PACKAGE_NAME}"
         QT_ANDROID_PACKAGE_SOURCE_DIR "${QGC_ANDROID_PACKAGE_SOURCE_DIR}"
-        QT_ANDROID_VERSION_NAME "${CMAKE_PROJECT_VERSION}"
+        QT_ANDROID_VERSION_NAME "${_qgc_android_version_name}"
         QT_ANDROID_VERSION_CODE ${ANDROID_VERSION_CODE}
         QT_ANDROID_APP_NAME "${CMAKE_PROJECT_NAME}"
         QT_ANDROID_APP_ICON "@mipmap/ic_launcher"

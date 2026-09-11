@@ -3,10 +3,9 @@
 #include "qgc_version.h"
 
 #include <QtCore/QApplicationStatic>
-#include <QtCore/QRegularExpression>
 
-#ifndef PULSEGCS_APP_VERSION_STR
-#define PULSEGCS_APP_VERSION_STR "0.0.0-M1-US07"
+#ifndef PULSEGCS_BUILD_NUMBER
+#define PULSEGCS_BUILD_NUMBER "0"
 #endif
 
 QGC_LOGGING_CATEGORY(PulseGCSStartupLog, "PulseGCS.StartupController")
@@ -26,17 +25,12 @@ PulseGCSStartupController *PulseGCSStartupController::instance()
 
 QString PulseGCSStartupController::appVersion()
 {
-    return QStringLiteral(PULSEGCS_APP_VERSION_STR);
+    return QStringLiteral(QGC_APP_VERSION_STR);
 }
 
 QString PulseGCSStartupController::buildNumber()
 {
-    static const QRegularExpression gitDescribeBuild(QStringLiteral("-([0-9]+)-g[0-9a-f]+$"));
-    const QRegularExpressionMatch match = gitDescribeBuild.match(QStringLiteral(QGC_APP_VERSION_STR));
-    if (match.hasMatch()) {
-        return match.captured(1);
-    }
-    return QStringLiteral(QGC_APP_DATE).left(10);
+    return QStringLiteral(PULSEGCS_BUILD_NUMBER);
 }
 
 void PulseGCSStartupController::setActive(bool active)

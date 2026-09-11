@@ -167,6 +167,11 @@ Qt*-linux*.tar.*
 # Local Development Tools
 # ------------------------------------------------------------------------------
 
+# PulseGCS local dev (do not commit)
+custom/src/*.theme-backup
+docs/commits/STAGING_PLAN.md
+AI_rules/
+
 # AI Assistants & Development Context
 .claude/
 .gemini/
