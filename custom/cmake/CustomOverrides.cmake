@@ -20,7 +20,7 @@ set(QGC_ANDROID_PACKAGE_NAME "com.pulsegcs.app" CACHE STRING "Android package id
 
 # Universal product version (splash, app menu, Android versionName, QCoreApplication::applicationVersion).
 # Bump the story suffix when the milestone changes. Build number is auto-derived from git commits-since-tag.
-set(PULSEGCS_APP_VERSION "0.0.0-M1-US07" CACHE STRING "PulseGCS product version" FORCE)
+set(PULSEGCS_APP_VERSION "0.1.0" CACHE STRING "PulseGCS product version" FORCE)
 
 # ----------------------------------------------------------------------------
 # Custom Application Icons
