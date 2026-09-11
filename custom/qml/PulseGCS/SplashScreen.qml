@@ -74,8 +74,8 @@ Item {
     readonly property color metaDimColor: "#5E778C"
     readonly property color metaLitColor: "#EAF2F7"
 
-    // TIMING (HTML saved_resource.html — scales with durationMs)
-    property int durationMs: 1400
+    // TIMING (HTML saved_resource.html — keyframes on 1400ms design timeline, scaled by durationMs)
+    property int durationMs: 5200
     readonly property real totalDuration: durationMs
     property real currentTimestampMs: 0.0
     readonly property real normalizedProgress: Math.min(1.0, Math.max(0.0, root.currentTimestampMs / root.totalDuration))
