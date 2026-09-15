@@ -1,16 +1,18 @@
 name: Android
 
+# Automatic Android APK CI/CD is disabled for the V0.1.0 release process.
+# Do not delete this workflow. To re-enable, restore push / pull_request / merge_group.
 on:
-  push:
-    branches:
-      - master
-      - 'Stable*'
-    tags:
-      - 'v*'
-    paths-ignore:
-      - 'docs/**'
-  pull_request:
-  merge_group:
+  # push:
+  #   branches:
+  #     - master
+  #     - 'Stable*'
+  #   tags:
+  #     - 'v*'
+  #   paths-ignore:
+  #     - 'docs/**'
+  # pull_request:
+  # merge_group:
   workflow_dispatch:
     inputs:
       build_type:
