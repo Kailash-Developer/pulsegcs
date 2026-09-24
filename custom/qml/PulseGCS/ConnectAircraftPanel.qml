@@ -35,7 +35,15 @@ Rectangle {
     property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var _activeAircraftInfo: PulseGCSAircraftManager.activeAircraftInfo
     property int _connectionState: _activeAircraftInfo ? _activeAircraftInfo.connectionState : -1
-    property real _discoveryProgress: _activeAircraftInfo ? _activeAircraftInfo.discoveryProgress : 0.0
+    property real _discoveryProgress: {
+        if (_activeAircraftInfo && _activeAircraftInfo.discoveryProgress > 0) {
+            return _activeAircraftInfo.discoveryProgress
+        }
+        if (_activeVehicle && _activeVehicle.loadProgress !== undefined) {
+            return _activeVehicle.loadProgress
+        }
+        return 0.0
+    }
     property bool _isSkyx: _activeAircraftInfo ? _activeAircraftInfo.isSkyx : false
 
     property string _connectingAddress: ""
@@ -50,16 +58,43 @@ Rectangle {
     property bool _autoConnectAttempted: false
     property bool _wasConnectedInSession: false
     property bool _disconnectPending: false
+    property bool _manualScanActive: false
+    readonly property bool _isRecoveryFailed: _isCommunicationLost
+        && _reconnectAttempt >= _maxReconnectAttempts
+        && _lostElapsedSeconds >= (_maxReconnectAttempts * 8)
 
     readonly property bool _isConnected: _activeVehicle !== null
-        && _connectionState === PulseGCSAircraft.Connected
-    readonly property bool _isConnectingOrSyncing: _connectionAttemptActive
-        || _connectionState === PulseGCSAircraft.Connecting
-        || _connectionState === PulseGCSAircraft.ParameterSync
+        && !_isCommunicationLost
+        && (_connectionState === PulseGCSAircraft.Connected
+            || (_activeVehicle.parameterManager && _activeVehicle.parameterManager.parametersReady))
+    readonly property bool _isRCLostOnly: _isConnected
+        && !_isCommunicationLost
+        && _activeVehicle !== null
+        && (
+            (_activeVehicle.rcRSSI && _activeVehicle.rcRSSI.value === 255)
+            || ((_activeVehicle.sensorsUnhealthyBits & 0x10000) !== 0)
+        )
+    readonly property bool _isParameterSyncing: !_isConnected
+        && !_isCommunicationLost
+        && !_hasCancelled
+        && !_hasConnectionFailed
+        && !_hasDisconnected
+        && ((_connectionState === PulseGCSAircraft.ParameterSync)
+            || (_activeVehicle !== null && _activeVehicle.parameterManager && !_activeVehicle.parameterManager.parametersReady))
+    readonly property bool _isConnecting: !_isConnected
+        && !_isParameterSyncing
+        && !_isCommunicationLost
+        && !_hasCancelled
+        && !_hasConnectionFailed
+        && !_hasDisconnected
+        && (_connectionState === PulseGCSAircraft.Connecting || _connectionAttemptActive)
+    readonly property bool _isConnectingOrSyncing: _isConnecting || _isParameterSyncing
     readonly property bool _isBackendReconnecting: _wasConnectedInSession
         && !_userCancelled
         && _btConfig !== null
         && _btConfig.linkActive
+        && _connectionState !== PulseGCSAircraft.Connecting
+        && _connectionState !== PulseGCSAircraft.ParameterSync
         && (_activeVehicle === null || _connectionState !== PulseGCSAircraft.Connected)
     readonly property bool _isCommunicationLost: _wasConnectedInSession
         && !_userCancelled
@@ -102,14 +137,28 @@ Rectangle {
 
     readonly property bool _showNoticeBar: !_isScanning
                                             && !_connectionAttemptActive
+                                            && !_isConnectingOrSyncing
                                             && !_isCommunicationLost
                                             && (_showConnectionError || _showCancelledNotice || _showDisconnectedNotice)
 
     property var _activeLink: _btConfig ? _btConfig.link : null
 
     on_ActiveVehicleChanged: {
+        _resolveActiveBtConfig()
         if (_disconnectPending && !_activeVehicle && (!_btConfig || !_btConfig.linkActive)) {
             _finalizeDisconnect()
+        }
+    }
+
+    on_IsConnectedChanged: {
+        if (_isConnected) {
+            _wasConnectedInSession = true
+        }
+    }
+
+    on_ConnectionStateChanged: {
+        if (_connectionState === PulseGCSAircraft.Connected) {
+            _wasConnectedInSession = true
         }
     }
 
@@ -142,6 +191,13 @@ Rectangle {
             _lostElapsedSeconds++
             if (_lostElapsedSeconds > 0 && (_lostElapsedSeconds % 8) === 0 && _reconnectAttempt < _maxReconnectAttempts) {
                 _reconnectAttempt++
+            }
+            if (_reconnectAttempt >= _maxReconnectAttempts && _lostElapsedSeconds >= (_maxReconnectAttempts * 8)) {
+                let activeCfg = _resolveActiveBtConfig()
+                if (activeCfg && !activeCfg.suppressAutoReconnect) {
+                    console.log("PulseGCS: Max recovery attempts reached (" + _maxReconnectAttempts + "). Suppressing native auto-reconnect for " + activeCfg.name)
+                    activeCfg.setSuppressAutoReconnect(true)
+                }
             }
             _statusMessage = qsTr("Communication lost with %1. Auto-reconnecting (attempt %2/%3)...")
                               .arg(_aircraftDisplayName())
@@ -200,6 +256,15 @@ Rectangle {
         _hasDisconnected = false
         _lastFailureDetail = ""
         _statusMessage = ""
+        let activeCfg = _resolveActiveBtConfig()
+        if (activeCfg) {
+            if (activeCfg.suppressAutoReconnect) {
+                activeCfg.setSuppressAutoReconnect(false)
+            }
+            if (typeof activeCfg.resetReconnectBackoff === "function") {
+                activeCfg.resetReconnectBackoff()
+            }
+        }
         if (_connectingAddress.length > 0) {
             connectDevice({
                 address: _connectingAddress,
@@ -223,6 +288,7 @@ Rectangle {
 
     function abortReconnect() {
         _userCancelled = true
+        _wasConnectedInSession = false
         _autoConnectAttempted = true
         _reconnectAttempt = 1
         _lostElapsedSeconds = 0
@@ -241,27 +307,59 @@ Rectangle {
     }
 
     onVisibleChanged: {
-        if (visible && _btConfig && !_isScanning && _isScanAllowed) {
-            startScan()
+        if (visible) {
+            _resolveActiveBtConfig()
+            if (_activeVehicle !== null) {
+                // Vehicle already connected (e.g. via startup auto-connect)
+                if (_isConnected) {
+                    let vehicleName = _aircraftDisplayName()
+                    _lastKnownAircraftName = vehicleName
+                    _statusMessage = qsTr("Connected to %1").arg(vehicleName)
+                } else if (_isParameterSyncing) {
+                    let pct = Math.round(_discoveryProgress * 100)
+                    _statusMessage = qsTr("Syncing parameters (%1%)...").arg(pct)
+                }
+            } else if (_btConfig && !_isScanning && _isScanAllowed) {
+                startScan()
+            }
         }
     }
 
-    // Connection Watchdog Timer (12 seconds safety timeout for initial handshake)
+    // Connection Watchdog Timer (15 seconds safety timeout for initial link/handshake)
     Timer {
         id: connectionWatchdog
-        interval: 12000
-        running: _connectionAttemptActive && _connectionState !== PulseGCSAircraft.Connected
+        interval: 15000
+        running: _isConnecting
         repeat: false
         onTriggered: {
-            if (_connectionAttemptActive && _connectionState !== PulseGCSAircraft.Connected) {
+            if (_isConnecting) {
                 _connectionAttemptActive = false
                 _hasConnectionFailed = true
                 _hasCancelled = false
                 _hasDisconnected = false
-                let devName = _connectingDeviceName.length > 0 ? _connectingDeviceName : qsTr("device")
-                _lastFailureDetail = qsTr("Connection timed out. Ensure the device is powered on and within range, then retry.")
+                let devName = _aircraftDisplayName()
+                _lastFailureDetail = qsTr("No heartbeat received within timeout. Ensure the aircraft is powered on and within wireless range.")
                 _statusMessage = qsTr("Connection to %1 failed: %2").arg(devName).arg(_lastFailureDetail)
                 console.log("Unexpected Bluetooth/connection loss: preserving native reconnect")
+            }
+        }
+    }
+
+    // Parameter Synchronization Watchdog Timer (60s safety timeout per prototype US05)
+    Timer {
+        id: paramSyncWatchdog
+        interval: 60000
+        running: _isParameterSyncing
+        repeat: false
+        onTriggered: {
+            if (_isParameterSyncing) {
+                _connectionAttemptActive = false
+                _hasConnectionFailed = true
+                _hasCancelled = false
+                _hasDisconnected = false
+                let devName = _aircraftDisplayName()
+                _lastFailureDetail = qsTr("Parameter synchronization timed out. Download stalled or connection was interrupted.")
+                _statusMessage = qsTr("Sync failed for %1: %2").arg(devName).arg(_lastFailureDetail)
             }
         }
     }
@@ -295,22 +393,125 @@ Rectangle {
     // -------------------------------------------------------------------------
     // Bluetooth Lifecycle & Discovery Functions
     // -------------------------------------------------------------------------
-    function _initBluetooth() {
+    function _generateAutoLinkName(device) {
+        if (!device) {
+            return "auto-Aircraft"
+        }
+        let cleanName = (device.rawName && device.rawName.trim().length > 0) ? device.rawName.trim() : (device.name ? device.name.trim() : "")
+        if (cleanName.length > 0 && cleanName.indexOf("Unknown Device") !== 0) {
+            return "auto-" + cleanName
+        }
+        if (device.address && device.address.length > 0) {
+            let cleanAddr = device.address.replace(/[:-]/g, "").toUpperCase()
+            let suffix = cleanAddr.length >= 4 ? cleanAddr.slice(-4) : cleanAddr
+            return "auto-" + suffix
+        }
+        return "auto-Aircraft"
+    }
+
+    function _isAddressConfigured(address) {
+        if (!address) {
+            return false
+        }
+        if (_btConfig && _btConfig.address === address) {
+            return true
+        }
         let configs = QGroundControl.linkManager.linkConfigurations
         for (let i = 0; i < configs.count; i++) {
             let cfg = configs.get(i)
-            if (cfg && cfg.linkType === LinkConfiguration.TypeBluetooth && cfg.name === "PulseGCS Bluetooth Link") {
-                _btConfig = cfg
-                break
+            if (cfg && cfg.linkType === LinkConfiguration.TypeBluetooth && cfg.address === address) {
+                return true
+            }
+        }
+        return false
+    }
+
+    function _resolveActiveBtConfig() {
+        let configs = QGroundControl.linkManager.linkConfigurations
+        if (!configs || configs.count === 0) {
+            return _btConfig
+        }
+
+        let primaryName = (_activeVehicle && _activeVehicle.vehicleLinkManager) ? _activeVehicle.vehicleLinkManager.primaryLinkName : ""
+
+        // 1. Match registered Bluetooth config by primary link name of active vehicle
+        if (primaryName && primaryName.length > 0) {
+            for (let i = 0; i < configs.count; i++) {
+                let cfg = configs.get(i)
+                if (cfg && cfg.linkType === LinkConfiguration.TypeBluetooth && cfg.name === primaryName) {
+                    _btConfig = cfg
+                    return cfg
+                }
             }
         }
 
-        if (!_btConfig) {
-            _btConfig = QGroundControl.linkManager.createConfiguration(LinkConfiguration.TypeBluetooth, "PulseGCS Bluetooth Link")
+        // 2. Match registered Bluetooth config that currently has an active link
+        for (let j = 0; j < configs.count; j++) {
+            let c = configs.get(j)
+            if (c && c.linkType === LinkConfiguration.TypeBluetooth && (c.linkActive || c.link !== null)) {
+                _btConfig = c
+                return c
+            }
+        }
+
+        // 3. Match registered Bluetooth config by connecting address if available
+        if (_connectingAddress && _connectingAddress.length > 0) {
+            for (let k = 0; k < configs.count; k++) {
+                let aCfg = configs.get(k)
+                if (aCfg && aCfg.linkType === LinkConfiguration.TypeBluetooth && aCfg.address === _connectingAddress) {
+                    _btConfig = aCfg
+                    return aCfg
+                }
+            }
+        }
+
+        return _btConfig
+    }
+
+    function _initBluetooth() {
+        let configs = QGroundControl.linkManager.linkConfigurations
+
+        // 1. One-time cleanup: remove any unconfigured legacy "PulseGCS Bluetooth Link" helper from previous runs
+        for (let i = configs.count - 1; i >= 0; i--) {
+            let cfg = configs.get(i)
+            if (cfg && cfg.linkType === LinkConfiguration.TypeBluetooth) {
+                if (cfg.name === "PulseGCS Bluetooth Link" && (!cfg.address || cfg.address === "0" || cfg.address.length === 0)) {
+                    console.log("PulseGCS: Removing unconfigured legacy Bluetooth link from previous session")
+                    QGroundControl.linkManager.removeConfiguration(cfg)
+                }
+            }
+        }
+
+        // 2. Look for an existing valid Bluetooth configuration in LinkManager
+        let existingValid = null
+        for (let j = 0; j < configs.count; j++) {
+            let c = configs.get(j)
+            if (c && c.linkType === LinkConfiguration.TypeBluetooth) {
+                if (c.linkActive || c.link !== null) {
+                    existingValid = c
+                    break
+                }
+                if (c.address && c.address !== "0" && c.address.length > 0) {
+                    if (c.name && c.name.indexOf("auto-") === 0) {
+                        existingValid = c
+                        break
+                    }
+                    if (!existingValid) {
+                        existingValid = c
+                    }
+                }
+            }
+        }
+
+        if (existingValid) {
+            _btConfig = existingValid
+        } else if (!_btConfig) {
+            // 3. Create a temporary scanning helper without persisting it to LinkManager or QSettings
+            _btConfig = QGroundControl.linkManager.createConfiguration(LinkConfiguration.TypeBluetooth, "")
             if (_btConfig) {
-                _btConfig.dynamic = false
-                _btConfig.autoConnect = true
-                QGroundControl.linkManager.endCreateConfiguration(_btConfig)
+                _btConfig.dynamic = true
+                _btConfig.autoConnect = false
+                // Do NOT call endCreateConfiguration() here. An unconfigured helper must never be persisted.
             }
         }
 
@@ -334,7 +535,6 @@ Rectangle {
         // Transition to SEARCHING state: reset prior terminal states
         _hasConnectionFailed = false
         _hasCancelled = false
-        _hasDisconnected = false
         _userCancelled = false
         _scanTimedOut = false
         _scanElapsedSeconds = 0
@@ -401,7 +601,7 @@ Rectangle {
                     let liveDev = liveAddressMap[p.address]
                     let rssiVal = (liveDev && liveDev.rssi !== undefined && liveDev.rssi !== null) ? liveDev.rssi : ((p.rssi !== undefined && p.rssi !== null) ? p.rssi : 0)
                     let isConnected = !!connectedAddressMap[p.address]
-                    let isConfigured = (_btConfig && _btConfig.address === p.address)
+                    let isConfigured = _isAddressConfigured(p.address)
                     let isDetected = isConnected || isConfigured || (liveDev !== undefined) || (rssiVal !== 0)
                     paired.push({
                         name: rawName.length > 0 ? rawName : qsTr("Unknown Device (%1)").arg(p.address),
@@ -482,11 +682,12 @@ Rectangle {
         // 3. Known / Paired Aircraft Auto-Connect
         // If a stored/known paired aircraft is currently available and no vehicle or connection
         // attempt is active, automatically initiate connection without manual user interaction.
-        if (!_autoConnectAttempted && !_userCancelled && !_connectionAttemptActive && !_isCommunicationLost && !_disconnectPending && _activeVehicle === null) {
+        // NOTE: Do NOT auto-connect if user explicitly requested a manual scan (_manualScanActive).
+        if (!_hasDisconnected && !_manualScanActive && !_autoConnectAttempted && !_userCancelled && !_connectionAttemptActive && !_isCommunicationLost && !_disconnectPending && _activeVehicle === null) {
             let availablePaired = null
             for (let k = 0; k < _pairedDevices.length; k++) {
                 let dev = _pairedDevices[k]
-                if (dev.connected || dev.isConfigured || dev.detected || (_btConfig && _btConfig.address === dev.address)) {
+                if (dev.connected || dev.isConfigured || dev.detected || _isAddressConfigured(dev.address)) {
                     availablePaired = dev
                     break
                 }
@@ -574,21 +775,86 @@ Rectangle {
         _lastKnownAircraftName = _connectingDeviceName
         _connectionAttemptActive = true
         _userCancelled = false
+        _manualScanActive = false
         _lastFailureDetail = ""
         _statusMessage = qsTr("Connecting to %1...").arg(_connectingDeviceName)
 
-        if (_btConfig) {
-            if (typeof _btConfig.setDeviceByAddress === "function") {
-                _btConfig.setDeviceByAddress(device.address)
-            } else {
-                _btConfig.address = device.address
-                _btConfig.deviceName = device.name
+        let linkName = _generateAutoLinkName(device)
+        let configs = QGroundControl.linkManager.linkConfigurations
+        let targetConfig = null
+
+        // 1. Check whether an existing Bluetooth configuration already represents this device/address
+        for (let i = 0; i < configs.count; i++) {
+            let cfg = configs.get(i)
+            if (cfg && cfg.linkType === LinkConfiguration.TypeBluetooth) {
+                if (cfg.address && cfg.address === device.address) {
+                    targetConfig = cfg
+                    break
+                }
+            }
+        }
+
+        if (targetConfig) {
+            // 2. Reuse the existing configuration
+            console.log("PulseGCS: Reusing existing Bluetooth configuration for", device.address, ":", targetConfig.name)
+            if (typeof targetConfig.setDeviceByAddress === "function") {
+                targetConfig.setDeviceByAddress(device.address)
+            }
+            if (_btConfig && _btConfig !== targetConfig && typeof targetConfig.copyFrom === "function") {
+                targetConfig.copyFrom(_btConfig)
+            }
+            targetConfig.dynamic = false
+            targetConfig.autoConnect = true
+
+            // If name is legacy or generic auto, update it to auto-<device-name>
+            if (targetConfig.name === "PulseGCS Bluetooth Link" || targetConfig.name.indexOf("auto-") === 0) {
+                targetConfig.name = linkName
+            }
+            _btConfig = targetConfig
+        } else {
+            // 3. No existing configuration found for this device address.
+            // Check if current _btConfig is an unpersisted helper (not in LinkManager)
+            let isCurrentInLinkManager = false
+            for (let j = 0; j < configs.count; j++) {
+                if (configs.get(j) === _btConfig) {
+                    isCurrentInLinkManager = true
+                    break
+                }
             }
 
-            _btConfig.dynamic = false
-            _btConfig.autoConnect = true
+            if (!isCurrentInLinkManager && _btConfig) {
+                // Promote our unpersisted helper into the persistent configuration
+                console.log("PulseGCS: Promoting helper to persistent auto configuration:", linkName, device.address)
+                _btConfig.name = linkName
+                if (typeof _btConfig.setDeviceByAddress === "function") {
+                    _btConfig.setDeviceByAddress(device.address)
+                }
+                _btConfig.dynamic = false
+                _btConfig.autoConnect = true
+                QGroundControl.linkManager.endCreateConfiguration(_btConfig)
+                targetConfig = _btConfig
+            } else {
+                // Create a new persistent configuration for this device
+                console.log("PulseGCS: Creating new persistent auto configuration:", linkName, device.address)
+                let newConfig = QGroundControl.linkManager.createConfiguration(LinkConfiguration.TypeBluetooth, linkName)
+                if (newConfig) {
+                    if (_btConfig && typeof newConfig.copyFrom === "function") {
+                        newConfig.copyFrom(_btConfig)
+                    }
+                    if (typeof newConfig.setDeviceByAddress === "function") {
+                        newConfig.setDeviceByAddress(device.address)
+                    }
+                    newConfig.dynamic = false
+                    newConfig.autoConnect = true
+                    QGroundControl.linkManager.endCreateConfiguration(newConfig)
+                    _btConfig = newConfig
+                    targetConfig = newConfig
+                }
+            }
+        }
 
-            QGroundControl.linkManager.createConnectedLink(_btConfig)
+        if (targetConfig) {
+            QGroundControl.linkManager.createConnectedLink(targetConfig)
         }
     }
 
@@ -602,18 +868,21 @@ Rectangle {
         _connectingAddress = ""
         _connectingDeviceName = ""
         _connectionAttemptActive = false
+        _manualScanActive = false
         _reconnectAttempt = 1
         _lostElapsedSeconds = 0
 
-        if (_activeVehicle && typeof _activeVehicle.closeVehicle === "function") {
-            _activeVehicle.closeVehicle()
-        }
+        _resolveActiveBtConfig()
 
         let linkIsActive = false
         if (_btConfig) {
-            console.log("User initiated disconnect: suppressing native reconnect")
+            console.log("User initiated disconnect: suppressing native reconnect for", _btConfig.name)
             linkIsActive = _btConfig.linkActive
             QGroundControl.linkManager.disconnectLinkConfiguration(_btConfig)
+        }
+
+        if (_activeVehicle && typeof _activeVehicle.closeVehicle === "function") {
+            _activeVehicle.closeVehicle()
         }
 
         if (linkIsActive || _activeVehicle !== null) {
@@ -625,13 +894,14 @@ Rectangle {
     }
 
     function _handleConnectionError(errorMsg) {
-        if (_connectionAttemptActive) {
+        if (_connectionAttemptActive || _isConnectingOrSyncing) {
             _connectionAttemptActive = false
             connectionWatchdog.stop()
+            paramSyncWatchdog.stop()
             _hasConnectionFailed = true
             _hasCancelled = false
             _hasDisconnected = false
-            let devName = _connectingDeviceName.length > 0 ? _connectingDeviceName : qsTr("device")
+            let devName = _aircraftDisplayName()
             _lastFailureDetail = _humanizeSocketError(errorMsg)
             _statusMessage = qsTr("Connection to %1 failed: %2").arg(devName).arg(_lastFailureDetail)
             console.log("Unexpected Bluetooth/connection loss: preserving native reconnect")
@@ -645,9 +915,14 @@ Rectangle {
         _hasDisconnected = false
         _hasConnectionFailed = false
         connectionWatchdog.stop()
+        paramSyncWatchdog.stop()
+        _resolveActiveBtConfig()
         if (_btConfig) {
-            console.log("User initiated disconnect: suppressing native reconnect")
+            console.log("User initiated disconnect: suppressing native reconnect for", _btConfig.name)
             QGroundControl.linkManager.disconnectLinkConfiguration(_btConfig)
+        }
+        if (_activeVehicle && typeof _activeVehicle.closeVehicle === "function") {
+            _activeVehicle.closeVehicle()
         }
         _statusMessage = qsTr("Connection cancelled.")
         _refreshDeviceLists()
@@ -698,12 +973,24 @@ Rectangle {
     }
 
     Connections {
+        target: _activeVehicle
+        ignoreUnknownSignals: true
+
+        function onLoadProgressChanged() {
+            if (_isParameterSyncing) {
+                let pct = Math.round(_discoveryProgress * 100)
+                _statusMessage = qsTr("Syncing parameters (%1%)...").arg(pct)
+            }
+        }
+    }
+
+    Connections {
         target: _activeLink
         ignoreUnknownSignals: true
 
         function onCommunicationError(title, error) {
             let msg = (error && error.length > 0) ? error : title
-            if (_connectionAttemptActive) {
+            if (_connectionAttemptActive || _isConnectingOrSyncing) {
                 _handleConnectionError(msg)
             } else if (_isCommunicationLost || _connectionState === PulseGCSAircraft.Connected) {
                 _lastFailureDetail = _humanizeSocketError(msg)
@@ -712,7 +999,7 @@ Rectangle {
         }
 
         function onDisconnected() {
-            if (_connectionAttemptActive) {
+            if (_connectionAttemptActive || _isConnectingOrSyncing) {
                 _handleConnectionError(qsTr("Link disconnected unexpectedly."))
             } else if (_disconnectPending) {
                 _finalizeDisconnect()
@@ -729,7 +1016,7 @@ Rectangle {
         }
 
         function onDiscoveryProgressChanged() {
-            if (_connectionState === PulseGCSAircraft.ParameterSync) {
+            if (_connectionState === PulseGCSAircraft.ParameterSync || _isParameterSyncing) {
                 let pct = Math.round(_discoveryProgress * 100)
                 _statusMessage = qsTr("Syncing parameters (%1%)...").arg(pct)
             }
@@ -765,6 +1052,7 @@ Rectangle {
             break
 
         case PulseGCSAircraft.ParameterSync:
+            connectionWatchdog.stop()
             let pct = Math.round(_discoveryProgress * 100)
             _statusMessage = qsTr("Syncing parameters (%1%)...").arg(pct)
             break
@@ -776,6 +1064,7 @@ Rectangle {
             _reconnectAttempt = 1
             _lostElapsedSeconds = 0
             connectionWatchdog.stop()
+            paramSyncWatchdog.stop()
             let vehicleName = _activeAircraftInfo.model && _activeAircraftInfo.model !== "Unknown" ? _activeAircraftInfo.model : _connectingDeviceName
             if (vehicleName.length === 0) {
                 vehicleName = _isSkyx ? qsTr("SkyX Aircraft") : qsTr("Vehicle")
@@ -891,6 +1180,7 @@ Rectangle {
                     if (_isScanning) {
                         stopScan()
                     } else if (_isScanAllowed) {
+                        _manualScanActive = true
                         startScan()
                     }
                 }
@@ -945,7 +1235,7 @@ Rectangle {
             color: PulseGCSTokens.cardTintBackground(root.isOutdoor)
             border.color: Qt.rgba(PulseGCSTokens.accentColor(root.isOutdoor).r, PulseGCSTokens.accentColor(root.isOutdoor).g, PulseGCSTokens.accentColor(root.isOutdoor).b, 0.3)
             border.width: 1
-            visible: _isScanning && _isScanAllowed && !_connectionAttemptActive && !_isCommunicationLost
+            visible: _isScanning && _isScanAllowed && !_isConnectingOrSyncing && !_isCommunicationLost
 
             RowLayout {
                 id: searchingRow
@@ -1010,7 +1300,7 @@ Rectangle {
             color: PulseGCSTokens.statusBackgroundColor("warn", root.isOutdoor)
             border.color: Qt.rgba(PulseGCSTokens.statusColor("warn", root.isOutdoor).r, PulseGCSTokens.statusColor("warn", root.isOutdoor).g, PulseGCSTokens.statusColor("warn", root.isOutdoor).b, 0.35)
             border.width: 1
-            visible: !_isConnected && _scanTimedOut && !_isScanning && _discoveredDevices.length === 0 && _pairedDevices.length === 0
+            visible: !_isConnected && !_isConnectingOrSyncing && _scanTimedOut && !_isScanning && _discoveredDevices.length === 0 && _pairedDevices.length === 0
 
             RowLayout {
                 id: timeoutRow
@@ -1078,6 +1368,7 @@ Rectangle {
                         font.bold: true
                         onClicked: {
                             if (_isScanAllowed) {
+                                _manualScanActive = true
                                 startScan()
                             }
                         }
@@ -1127,83 +1418,6 @@ Rectangle {
             }
         }
 
-        // Active Connection Handshake Banner
-        Rectangle {
-            Layout.fillWidth: true
-            height: connectingBannerRow.implicitHeight + 16
-            radius: PulseGCSTokens.radiusCard
-            color: PulseGCSTokens.cardTintBackground(root.isOutdoor)
-            border.color: PulseGCSTokens.accentColor(root.isOutdoor)
-            border.width: 1
-            visible: _connectionAttemptActive && !_isCommunicationLost
-
-            RowLayout {
-                id: connectingBannerRow
-                anchors.fill: parent
-                anchors.leftMargin: 16
-                anchors.rightMargin: 16
-                anchors.topMargin: 8
-                anchors.bottomMargin: 8
-                spacing: 12
-
-                Rectangle {
-                    Layout.preferredWidth: 10
-                    Layout.preferredHeight: 10
-                    radius: 5
-                    color: PulseGCSTokens.accentColor(root.isOutdoor)
-
-                    SequentialAnimation on opacity {
-                        running: _connectionAttemptActive
-                        loops: Animation.Infinite
-                        NumberAnimation { from: 1.0; to: 0.3; duration: 500 }
-                        NumberAnimation { from: 0.3; to: 1.0; duration: 500 }
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 4
-
-                    Text {
-                        text: _statusMessage.length > 0 ? _statusMessage : qsTr("Connecting to aircraft...")
-                        font.pixelSize: 12
-                        font.bold: true
-                        color: PulseGCSTokens.primaryText(root.isOutdoor)
-                        renderType: Text.QtRendering
-                    }
-
-                    PulseGCSProgressBar {
-                        Layout.fillWidth: true
-                        indeterminate: _connectionState !== PulseGCSAircraft.ParameterSync
-                        progress: _discoveryProgress
-                        isOutdoor: root.isOutdoor
-                    }
-                }
-
-                Button {
-                    text: qsTr("Cancel")
-                    implicitHeight: 28
-                    font.pixelSize: 11
-                    font.bold: true
-                    onClicked: cancelConnection()
-
-                    contentItem: Text {
-                        text: parent.text
-                        font: parent.font
-                        color: PulseGCSTokens.primaryText(root.isOutdoor)
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        renderType: Text.QtRendering
-                    }
-                    background: Rectangle {
-                        radius: 6
-                        color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
-                        border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
-                        border.width: 1
-                    }
-                }
-            }
-        }
 
         // =====================================================================
         // Connection Lifecycle Notice Bar (Connection Failed, Cancelled, Disconnected)
@@ -1232,139 +1446,13 @@ Rectangle {
                 if (_showConnectionError) {
                     retryLastConnection()
                 } else if (_isScanAllowed) {
+                    _manualScanActive = true
                     startScan()
                 }
             }
         }
 
-        // =====================================================================
-        // M2-US09: Dedicated Connection Lost / Auto-Reconnecting Card
-        // =====================================================================
-        Rectangle {
-            id: connectionLostCard
-            Layout.fillWidth: true
-            height: lostRow.implicitHeight + 20
-            radius: PulseGCSTokens.radiusCard
-            color: PulseGCSTokens.statusBackgroundColor("warn", root.isOutdoor)
-            border.color: PulseGCSTokens.statusColor("warn", root.isOutdoor)
-            border.width: 1
-            visible: _isCommunicationLost
 
-            RowLayout {
-                id: lostRow
-                anchors.fill: parent
-                anchors.leftMargin: 16
-                anchors.rightMargin: 16
-                anchors.topMargin: 10
-                anchors.bottomMargin: 10
-                spacing: 12
-
-                Rectangle {
-                    Layout.preferredWidth: 10
-                    Layout.preferredHeight: 10
-                    radius: 5
-                    color: PulseGCSTokens.statusColor("warn", root.isOutdoor)
-
-                    SequentialAnimation on opacity {
-                        running: root._isCommunicationLost
-                        loops: Animation.Infinite
-                        NumberAnimation { from: 1.0; to: 0.25; duration: 500 }
-                        NumberAnimation { from: 0.25; to: 1.0; duration: 500 }
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 3
-
-                    RowLayout {
-                        spacing: 8
-                        Text {
-                            text: qsTr("CONNECTION LOST")
-                            font.pixelSize: 13
-                            font.bold: true
-                            color: PulseGCSTokens.primaryText(root.isOutdoor)
-                            renderType: Text.QtRendering
-                        }
-                        PulseGCSStatusPill {
-                            status: "accentpill"
-                            text: qsTr("RECONNECTING · ATTEMPT %1/%2").arg(root._reconnectAttempt).arg(root._maxReconnectAttempts)
-                            pulsing: true
-                            isOutdoor: root.isOutdoor
-                        }
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: qsTr("Attempting to reconnect to %1 — last heartbeat %2s ago. Last-known telemetry remains visible.")
-                              .arg(root._aircraftDisplayName())
-                              .arg(root._lostElapsedSeconds)
-                        font.pixelSize: 11
-                        color: PulseGCSTokens.mutedText(root.isOutdoor)
-                        wrapMode: Text.WordWrap
-                        renderType: Text.QtRendering
-                    }
-
-                    PulseGCSProgressBar {
-                        Layout.fillWidth: true
-                        Layout.topMargin: 2
-                        indeterminate: true
-                        isOutdoor: root.isOutdoor
-                        barColor: PulseGCSTokens.statusColor("warn", root.isOutdoor)
-                    }
-                }
-
-                RowLayout {
-                    spacing: 8
-
-                    Button {
-                        text: qsTr("Retry Now")
-                        implicitHeight: 32
-                        implicitWidth: Math.max(88, contentItem.implicitWidth + 20)
-                        font.pixelSize: 11
-                        font.bold: true
-                        onClicked: root.retryLastConnection()
-
-                        contentItem: Text {
-                            text: parent.text
-                            font: parent.font
-                            color: root.isOutdoor ? "#FFFFFF" : "#04222B"
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            renderType: Text.QtRendering
-                        }
-                        background: Rectangle {
-                            radius: 6
-                            color: PulseGCSTokens.accentColor(root.isOutdoor)
-                        }
-                    }
-
-                    Button {
-                        text: qsTr("Abort")
-                        implicitHeight: 32
-                        implicitWidth: Math.max(72, contentItem.implicitWidth + 20)
-                        font.pixelSize: 11
-                        font.bold: true
-                        onClicked: root.abortReconnect()
-
-                        contentItem: Text {
-                            text: parent.text
-                            font: parent.font
-                            color: PulseGCSTokens.primaryText(root.isOutdoor)
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            renderType: Text.QtRendering
-                        }
-                        background: Rectangle {
-                            radius: 6
-                            color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
-                            border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
-                            border.width: 1
-                        }
-                    }
-                }
-            }
-        }
 
         // =====================================================================
         // Scrollable Devices List
@@ -1382,6 +1470,454 @@ Rectangle {
                 id: scrollCol
                 width: flickable.width
                 spacing: 16
+
+                // -------------------------------------------------------------
+                // Dedicated Connecting State Card (#us02-connecting)
+                // -------------------------------------------------------------
+                PulseGCSStateCard {
+                    id: connectingCard
+                    Layout.fillWidth: true
+                    visible: _isConnecting
+                    title: qsTr("Connecting")
+                    subtitle: _aircraftDisplayName()
+                    status: "accentpill"
+                    statusText: qsTr("CONNECTING")
+                    statusPulsing: true
+                    showIdentityBadge: true
+                    isSkyx: _isSkyx
+                    accentTint: true
+                    isOutdoor: root.isOutdoor
+
+                    ColumnLayout {
+                        width: parent.width
+                        spacing: 8
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: qsTr("Aircraft identity")
+                                font.pixelSize: 11
+                                color: PulseGCSTokens.metaText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                            Item { Layout.fillWidth: true }
+                            Text {
+                                text: _aircraftDisplayName()
+                                font.pixelSize: 11
+                                font.bold: true
+                                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: qsTr("Connection info")
+                                font.pixelSize: 11
+                                color: PulseGCSTokens.metaText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                            Item { Layout.fillWidth: true }
+                            Text {
+                                text: _connectingAddress.length > 0 ? qsTr("Bluetooth · Pairing (%1)").arg(_connectingAddress) : qsTr("Bluetooth · Pairing…")
+                                font.pixelSize: 11
+                                font.family: "Monospace"
+                                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 1
+                            color: PulseGCSTokens.dividerColor(root.isOutdoor)
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+
+                            Text {
+                                text: _statusMessage.length > 0 ? _statusMessage : qsTr("Establishing wireless link and awaiting heartbeat...")
+                                font.pixelSize: 11
+                                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+
+                            PulseGCSProgressBar {
+                                Layout.fillWidth: true
+                                indeterminate: true
+                                isOutdoor: root.isOutdoor
+                            }
+                        }
+                    }
+
+                    footer: RowLayout {
+                        width: parent ? parent.width : 300
+                        spacing: 8
+
+                        Item { Layout.fillWidth: true }
+
+                        Button {
+                            text: qsTr("Cancel")
+                            implicitHeight: 30
+                            font.pixelSize: 11
+                            font.bold: true
+                            onClicked: cancelConnection()
+
+                            contentItem: Text {
+                                text: parent.text
+                                font: parent.font
+                                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                renderType: Text.QtRendering
+                            }
+                            background: Rectangle {
+                                radius: 6
+                                color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
+                                border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
+                                border.width: 1
+                            }
+                        }
+                    }
+                }
+
+                // -------------------------------------------------------------
+                // Dedicated Parameter Synchronization Card (#us02-paramsync / #us05-progress)
+                // -------------------------------------------------------------
+                PulseGCSStateCard {
+                    id: paramSyncCard
+                    Layout.fillWidth: true
+                    visible: _isParameterSyncing
+                    title: qsTr("Parameter synchronization")
+                    subtitle: _aircraftDisplayName()
+                    status: "accentpill"
+                    statusText: qsTr("SYNCING PARAMS")
+                    statusPulsing: true
+                    showIdentityBadge: true
+                    isSkyx: _isSkyx
+                    accentTint: true
+                    isOutdoor: root.isOutdoor
+
+                    ColumnLayout {
+                        width: parent.width
+                        spacing: 8
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: qsTr("Aircraft identity")
+                                font.pixelSize: 11
+                                color: PulseGCSTokens.metaText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                            Item { Layout.fillWidth: true }
+                            Text {
+                                text: _aircraftDisplayName()
+                                font.pixelSize: 11
+                                font.bold: true
+                                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: qsTr("Connection info")
+                                font.pixelSize: 11
+                                color: PulseGCSTokens.metaText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                            Item { Layout.fillWidth: true }
+                            Text {
+                                text: qsTr("Bluetooth · paired, heartbeat OK")
+                                font.pixelSize: 11
+                                font.family: "Monospace"
+                                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 1
+                            color: PulseGCSTokens.dividerColor(root.isOutdoor)
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: qsTr("Downloading vehicle parameters")
+                                    font.pixelSize: 11
+                                    color: PulseGCSTokens.mutedText(root.isOutdoor)
+                                    renderType: Text.QtRendering
+                                }
+                                Item { Layout.fillWidth: true }
+                                Text {
+                                    text: qsTr("%1%").arg(Math.round(_discoveryProgress * 100))
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    color: PulseGCSTokens.accentColor(root.isOutdoor)
+                                    renderType: Text.QtRendering
+                                }
+                            }
+
+                            PulseGCSProgressBar {
+                                Layout.fillWidth: true
+                                indeterminate: _discoveryProgress <= 0.0
+                                progress: _discoveryProgress
+                                isOutdoor: root.isOutdoor
+                            }
+
+                            Text {
+                                text: qsTr("This can take up to a minute on first connection.")
+                                font.pixelSize: 10
+                                color: PulseGCSTokens.metaText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                        }
+                    }
+
+                    footer: RowLayout {
+                        width: parent ? parent.width : 300
+                        spacing: 8
+
+                        Item { Layout.fillWidth: true }
+
+                        Button {
+                            text: qsTr("Cancel")
+                            implicitHeight: 30
+                            font.pixelSize: 11
+                            font.bold: true
+                            onClicked: cancelConnection()
+
+                            contentItem: Text {
+                                text: parent.text
+                                font: parent.font
+                                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                renderType: Text.QtRendering
+                            }
+                            background: Rectangle {
+                                radius: 6
+                                color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
+                                border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
+                                border.width: 1
+                            }
+                        }
+                    }
+                }
+
+                // -------------------------------------------------------------
+                // Dedicated Communication Lost / Reconnecting State Card (M2-US09)
+                // -------------------------------------------------------------
+                PulseGCSStateCard {
+                    id: reconnectCard
+                    Layout.fillWidth: true
+                    visible: _isCommunicationLost
+                    title: _isRecoveryFailed ? qsTr("Recovery failed") : (_lostElapsedSeconds < 4 ? qsTr("Communication lost") : qsTr("Reconnecting"))
+                    subtitle: _aircraftDisplayName()
+                    status: _isRecoveryFailed ? "err" : (_lostElapsedSeconds < 4 ? "warn" : "accentpill")
+                    statusText: _isRecoveryFailed ? qsTr("RECONNECT FAILED") : (_lostElapsedSeconds < 4 ? qsTr("COMM LOST") : qsTr("RECONNECTING · ATTEMPT %1/%2").arg(root._reconnectAttempt).arg(root._maxReconnectAttempts))
+                    statusPulsing: !_isRecoveryFailed
+                    showIdentityBadge: true
+                    isSkyx: _isSkyx
+                    accentTint: !_isRecoveryFailed && _lostElapsedSeconds >= 4
+                    isOutdoor: root.isOutdoor
+
+                    ColumnLayout {
+                        width: parent.width
+                        spacing: 8
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: qsTr("Aircraft identity")
+                                font.pixelSize: 11
+                                color: PulseGCSTokens.metaText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                            Item { Layout.fillWidth: true }
+                            Text {
+                                text: _aircraftDisplayName()
+                                font.pixelSize: 11
+                                font.bold: true
+                                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: qsTr("Last heartbeat")
+                                font.pixelSize: 11
+                                color: PulseGCSTokens.metaText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                            Item { Layout.fillWidth: true }
+                            Text {
+                                text: qsTr("%1s ago").arg(root._lostElapsedSeconds)
+                                font.pixelSize: 11
+                                font.family: "Monospace"
+                                color: PulseGCSTokens.statusColor("warn", root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: qsTr("Recovery method")
+                                font.pixelSize: 11
+                                color: PulseGCSTokens.metaText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                            Item { Layout.fillWidth: true }
+                            Text {
+                                text: qsTr("Bluetooth · automatic retry")
+                                font.pixelSize: 11
+                                font.family: "Monospace"
+                                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 1
+                            color: PulseGCSTokens.dividerColor(root.isOutdoor)
+                        }
+
+                        // Status / Progress description
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: _isRecoveryFailed
+                                    ? qsTr("Automatic reconnection attempts exhausted. Confirm the aircraft is powered on and in range.")
+                                    : (_lostElapsedSeconds < 4
+                                        ? qsTr("Link interrupted. Stand by while PulseGCS attempts automatic recovery.")
+                                        : qsTr("Attempting to restore link to %1 — attempt %2 of %3.")
+                                            .arg(_aircraftDisplayName())
+                                            .arg(root._reconnectAttempt)
+                                            .arg(root._maxReconnectAttempts))
+                                font.pixelSize: 11
+                                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                                wrapMode: Text.WordWrap
+                                renderType: Text.QtRendering
+                            }
+
+                            PulseGCSProgressBar {
+                                Layout.fillWidth: true
+                                Layout.topMargin: 2
+                                visible: !_isRecoveryFailed
+                                indeterminate: true
+                                isOutdoor: root.isOutdoor
+                                barColor: _lostElapsedSeconds < 4 ? PulseGCSTokens.statusColor("warn", root.isOutdoor) : PulseGCSTokens.accentColor(root.isOutdoor)
+                            }
+                        }
+                    }
+
+                    footer: RowLayout {
+                        width: parent ? parent.width : 300
+                        spacing: 8
+
+                        Item { Layout.fillWidth: true }
+
+                        // Cancel / Abort Reconnect
+                        Button {
+                            visible: !_isRecoveryFailed
+                            text: qsTr("Cancel Reconnect")
+                            implicitHeight: 30
+                            font.pixelSize: 11
+                            font.bold: true
+                            onClicked: root.abortReconnect()
+
+                            contentItem: Text {
+                                text: parent.text
+                                font: parent.font
+                                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                renderType: Text.QtRendering
+                            }
+                            background: Rectangle {
+                                radius: 6
+                                color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
+                                border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
+                                border.width: 1
+                            }
+                        }
+
+                        // Search Again (available when failed)
+                        Button {
+                            visible: _isRecoveryFailed
+                            text: qsTr("Search Again")
+                            implicitHeight: 30
+                            font.pixelSize: 11
+                            font.bold: true
+                            onClicked: {
+                                _userCancelled = true
+                                _wasConnectedInSession = false
+                                disconnectDevice()
+                                _manualScanActive = true
+                                startScan()
+                            }
+
+                            contentItem: Text {
+                                text: parent.text
+                                font: parent.font
+                                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                renderType: Text.QtRendering
+                            }
+                            background: Rectangle {
+                                radius: 6
+                                color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
+                                border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
+                                border.width: 1
+                            }
+                        }
+
+                        // Retry Now
+                        Button {
+                            text: qsTr("Retry Now")
+                            implicitHeight: 30
+                            font.pixelSize: 11
+                            font.bold: true
+                            onClicked: {
+                                root._reconnectAttempt = 1
+                                root._lostElapsedSeconds = 0
+                                root.retryLastConnection()
+                            }
+
+                            contentItem: Text {
+                                text: parent.text
+                                font: parent.font
+                                color: root.isOutdoor ? "#FFFFFF" : "#04222B"
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                renderType: Text.QtRendering
+                            }
+                            background: Rectangle {
+                                radius: 6
+                                color: PulseGCSTokens.accentColor(root.isOutdoor)
+                            }
+                        }
+                    }
+                }
 
                 // -------------------------------------------------------------
                 // Authoritative Connected Aircraft Card (#us01-skyx / #us01-nonskyx Connected)
@@ -1486,6 +2022,7 @@ Rectangle {
 
                         PulseGCSStatusPill {
                             status: {
+                                if (_isRCLostOnly) return "warn"
                                 if (_connectionState === PulseGCSAircraft.ParameterSync) return "accentpill"
                                 if (_activeVehicle && _activeVehicle.healthAndArmingCheckReport && _activeVehicle.healthAndArmingCheckReport.supported) {
                                     if (!_activeVehicle.healthAndArmingCheckReport.canArm && _activeVehicle.healthAndArmingCheckReport.problemsForCurrentMode.count > 0) return "warn"
@@ -1493,6 +2030,7 @@ Rectangle {
                                 return "ok"
                             }
                             text: {
+                                if (_isRCLostOnly) return qsTr("RC NOT READY")
                                 if (_connectionState === PulseGCSAircraft.ParameterSync) return qsTr("CHECKING")
                                 if (_activeVehicle && _activeVehicle.healthAndArmingCheckReport && _activeVehicle.healthAndArmingCheckReport.supported) {
                                     if (!_activeVehicle.healthAndArmingCheckReport.canArm && _activeVehicle.healthAndArmingCheckReport.problemsForCurrentMode.count > 0) return qsTr("NOT READY")
@@ -1517,6 +2055,9 @@ Rectangle {
                                     if (sats >= 0) {
                                         parts.push(qsTr("GPS: %1 Sats").arg(sats))
                                     }
+                                }
+                                if (_isRCLostOnly) {
+                                    parts.push(qsTr("RC Signal: Not Detected"))
                                 }
                                 let issues = (_activeVehicle && _activeVehicle.healthAndArmingCheckReport && _activeVehicle.healthAndArmingCheckReport.problemsForCurrentMode) ? _activeVehicle.healthAndArmingCheckReport.problemsForCurrentMode.count : 0
                                 parts.push(issues === 1 ? qsTr("1 Issue") : qsTr("%1 Issues").arg(issues))
@@ -1564,7 +2105,7 @@ Rectangle {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 8
-                    visible: !_isConnected && _pairedDevices.length > 0
+                    visible: !_isConnected && !_isConnectingOrSyncing && _pairedDevices.length > 0
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -1664,7 +2205,7 @@ Rectangle {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 8
-                    visible: !_isConnected && _discoveredDevices.length > 0
+                    visible: !_isConnected && !_isConnectingOrSyncing && _discoveredDevices.length > 0
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -1720,7 +2261,7 @@ Rectangle {
                     color: PulseGCSTokens.surfaceElevatedBackground(root.isOutdoor)
                     border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
                     border.width: 1
-                    visible: !_isConnected && !_isScanning && !_scanTimedOut && _discoveredDevices.length === 0 && _pairedDevices.length === 0
+                    visible: !_isConnected && !_isConnectingOrSyncing && !_isScanning && !_scanTimedOut && _discoveredDevices.length === 0 && _pairedDevices.length === 0
 
                     ColumnLayout {
                         id: emptyCol
