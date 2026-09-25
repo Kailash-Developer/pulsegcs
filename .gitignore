@@ -209,3 +209,4 @@ GEMINI.md
 .python-version
 !tools/.python-version
 *.keystore
+coding_style/
