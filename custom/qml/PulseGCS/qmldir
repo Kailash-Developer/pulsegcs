@@ -2,3 +2,19 @@ module PulseGCS
 PulseGCSMark 1.0 PulseGCSMark.qml
 PulseGCSWatermark 1.0 PulseGCSWatermark.qml
 singleton PulseGCSTokens 1.0 PulseGCSTokens.qml
+SplashScreen 1.0 SplashScreen.qml
+ConnectAircraftPanel 1.0 ConnectAircraftPanel.qml
+PulseGCSStatusPill 1.0 PulseGCSStatusPill.qml
+PulseGCSIdentityBadge 1.0 PulseGCSIdentityBadge.qml
+PulseGCSSignalIndicator 1.0 PulseGCSSignalIndicator.qml
+PulseGCSProgressBar 1.0 PulseGCSProgressBar.qml
+PulseGCSRadarScanner 1.0 PulseGCSRadarScanner.qml
+PulseGCSStateCard 1.0 PulseGCSStateCard.qml
+PulseGCSDeviceRow 1.0 PulseGCSDeviceRow.qml
+PulseGCSReadinessHero 1.0 PulseGCSReadinessHero.qml
+PulseGCSReadinessCheck 1.0 PulseGCSReadinessCheck.qml
+PulseGCSActionableIssue 1.0 PulseGCSActionableIssue.qml
+PulseGCSNoticeBar 1.0 PulseGCSNoticeBar.qml
+PulseGCSReadinessSummary 1.0 PulseGCSReadinessSummary.qml
+PulseGCSReconnectBanner 1.0 PulseGCSReconnectBanner.qml
+

@@ -93,6 +93,20 @@ ToolIndicatorPage {
             }
 
             SubMenuButton {
+                objectName: "toolbar_viewAircraft"
+                implicitHeight: root._toolButtonHeight
+                Layout.fillWidth: true
+                text: qsTr("Aircraft")
+                imageResource: "/qmlimages/PaperPlane.svg"
+                onClicked: {
+                    if (mainWindow.allowViewSwitch()) {
+                        mainWindow.closeIndicatorDrawer()
+                        mainWindow.showConnectAircraft()
+                    }
+                }
+            }
+
+            SubMenuButton {
                 id: closeButton
                 objectName: "toolbar_viewClose"
                 implicitHeight: root._toolButtonHeight

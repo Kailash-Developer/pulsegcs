@@ -34,6 +34,9 @@ ApplicationWindow {
         // Start the sequence of first run prompt(s) only if splash is not active
         if (typeof PulseGCSStartupController === "undefined" || !PulseGCSStartupController.active) {
             firstRunPromptManager.nextPrompt()
+            if (!QGroundControl.multiVehicleManager.activeVehicle) {
+                mainWindow.showConnectAircraft()
+            }
         }
     }
 
@@ -41,6 +44,9 @@ ApplicationWindow {
         target: (typeof PulseGCSStartupController !== "undefined") ? PulseGCSStartupController : null
         function onStartupFinished() {
             firstRunPromptManager.nextPrompt()
+            if (!QGroundControl.multiVehicleManager.activeVehicle) {
+                mainWindow.showConnectAircraft()
+            }
         }
     }
 
@@ -148,12 +154,18 @@ ApplicationWindow {
         flyView.visible = false
         planView.visible = true
         toolDrawer.visible = false
+        if (connectAircraftPanel) {
+            connectAircraftPanel.visible = false
+        }
     }
 
     function showFlyView() {
         flyView.visible = true
         planView.visible = false
         toolDrawer.visible = false
+        if (connectAircraftPanel) {
+            connectAircraftPanel.visible = false
+        }
     }
 
     function showTool(toolTitle, toolSource, toolIcon) {
@@ -190,6 +202,23 @@ ApplicationWindow {
         if (settingsPage !== "") {
             toolDrawerLoader.item.showSettingsPage(settingsPage)
         }
+    }
+
+    function showConnectAircraft() {
+        flyView.visible = false
+        planView.visible = false
+        toolDrawer.visible = false
+        if (connectAircraftPanel) {
+            connectAircraftPanel.visible = true
+            connectAircraftPanel.startScan()
+        }
+    }
+
+    function hideConnectAircraft() {
+        if (connectAircraftPanel) {
+            connectAircraftPanel.visible = false
+        }
+        showFlyView()
     }
 
     //-------------------------------------------------------------------------
@@ -348,6 +377,23 @@ ApplicationWindow {
         objectName:     "mainView_plan"
         anchors.fill:   parent
         visible:        false
+    }
+
+    ConnectAircraftPanel {
+        id: connectAircraftPanel
+        objectName: "pulseGcsConnectAircraftPanel"
+        anchors.fill: parent
+        visible: false
+        z: 10000
+        onClosed: mainWindow.hideConnectAircraft()
+        onPlanMapRequested: {
+            mainWindow.hideConnectAircraft()
+            mainWindow.showPlanView()
+        }
+        onAdvancedConnectionRequested: {
+            mainWindow.hideConnectAircraft()
+            mainWindow.showSettingsTool("LinkSettings")
+        }
     }
 
     footer: LogReplayStatusBar {

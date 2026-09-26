@@ -64,6 +64,11 @@ set(QGC_RESOURCES ${QGC_RESOURCES} ${CUSTOM_RESOURCES} CACHE STRING "Paths to .q
 set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAircraftContract.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAircraftInfo.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAircraftInfo.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAircraftManager.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAircraftManager.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSStartupController.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSStartupController.h
     CACHE INTERNAL "" FORCE
