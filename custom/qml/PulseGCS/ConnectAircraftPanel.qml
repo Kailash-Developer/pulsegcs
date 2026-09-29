@@ -25,9 +25,121 @@ Rectangle {
     property var _btConfig: null
     property var _discoveredDevices: []
     property var _pairedDevices: []
-    property var _unpairedDevicesCache: ({})
+    property var _sessionPairedAddresses: ({})
+    property string _pairingAddress: ""
     property bool _isScanning: _btConfig ? _btConfig.scanning : false
     property string _statusMessage: ""
+
+    property var _unpairTargetDevice: null
+
+    Popup {
+        id: unpairConfirmPopup
+        anchors.centerIn: parent
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        width: Math.min(parent.width - 40, 360)
+        padding: 20
+
+        background: Rectangle {
+            radius: PulseGCSTokens.radiusCard
+            color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
+            border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 16
+
+            Text {
+                text: qsTr("Unpair Aircraft")
+                font.pixelSize: 15
+                font.bold: true
+                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: _unpairTargetDevice ? qsTr("Are you sure you want to unpair %1?").arg(_unpairTargetDevice.name || _unpairTargetDevice.address) : ""
+                font.pixelSize: 12
+                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                renderType: Text.QtRendering
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    text: qsTr("Cancel")
+                    implicitHeight: 32
+                    font.pixelSize: 11
+                    font.bold: true
+                    onClicked: unpairConfirmPopup.close()
+                    contentItem: Text {
+                        text: parent.text
+                        font: parent.font
+                        color: PulseGCSTokens.primaryText(root.isOutdoor)
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+                    background: Rectangle {
+                        radius: 6
+                        color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
+                        border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
+                        border.width: 1
+                    }
+                }
+
+                Button {
+                    text: qsTr("Unpair")
+                    implicitHeight: 32
+                    font.pixelSize: 11
+                    font.bold: true
+                    onClicked: {
+                        let target = _unpairTargetDevice
+                        unpairConfirmPopup.close()
+                        if (target) {
+                            unpairDevice(target)
+                        }
+                    }
+                    contentItem: Text {
+                        text: parent.text
+                        font: parent.font
+                        color: PulseGCSTokens.statusColor("err", root.isOutdoor)
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+                    background: Rectangle {
+                        radius: 6
+                        color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
+                        border.color: PulseGCSTokens.statusColor("err", root.isOutdoor)
+                        border.width: 1
+                    }
+                }
+            }
+        }
+    }
+
+    Timer {
+        id: pairingWatchdog
+        interval: 30000
+        repeat: false
+        onTriggered: {
+            if (_pairingAddress.length > 0) {
+                console.log("PulseGCS: Pairing attempt timed out for", _pairingAddress)
+                _pairingAddress = ""
+                _statusMessage = qsTr("Pairing timed out. Confirm the aircraft is in pairing mode and retry.")
+                _refreshDeviceLists()
+            }
+        }
+    }
 
     // -------------------------------------------------------------------------
     // Authoritative Connection State & Vehicle Classification
@@ -59,6 +171,7 @@ Rectangle {
     property bool _wasConnectedInSession: false
     property bool _disconnectPending: false
     property bool _manualScanActive: false
+    property bool _isReconnectAborted: false
     readonly property bool _isRecoveryFailed: _isCommunicationLost
         && _reconnectAttempt >= _maxReconnectAttempts
         && _lostElapsedSeconds >= (_maxReconnectAttempts * 8)
@@ -71,8 +184,8 @@ Rectangle {
         && !_isCommunicationLost
         && _activeVehicle !== null
         && (
-            (_activeVehicle.rcRSSI && _activeVehicle.rcRSSI.value === 255)
-            || ((_activeVehicle.sensorsUnhealthyBits & 0x10000) !== 0)
+            (_activeVehicle.vehicle && _activeVehicle.vehicle.rcRSSI && _activeVehicle.vehicle.rcRSSI.value === 255)
+            || ((_activeVehicle.sensorsUnhealthyBits & 0x10000) !== 0 && !_activeVehicle.allSensorsHealthy)
         )
     readonly property bool _isParameterSyncing: !_isConnected
         && !_isCommunicationLost
@@ -96,11 +209,12 @@ Rectangle {
         && _connectionState !== PulseGCSAircraft.Connecting
         && _connectionState !== PulseGCSAircraft.ParameterSync
         && (_activeVehicle === null || _connectionState !== PulseGCSAircraft.Connected)
-    readonly property bool _isCommunicationLost: _wasConnectedInSession
-        && !_userCancelled
+    readonly property bool _isCommunicationLost: (!_userCancelled || _isReconnectAborted)
+        && !_hasDisconnected
         && ((_connectionState === PulseGCSAircraft.CommunicationLost)
             || (_activeVehicle && _activeVehicle.vehicleLinkManager && _activeVehicle.vehicleLinkManager.communicationLost)
-            || _isBackendReconnecting)
+            || (_wasConnectedInSession && _isBackendReconnecting)
+            || (_wasConnectedInSession && _activeVehicle === null && !_disconnectPending))
     readonly property bool _isScanAllowed: !_disconnectPending
         && !_connectionAttemptActive
         && !_isConnectingOrSyncing
@@ -147,18 +261,50 @@ Rectangle {
         _resolveActiveBtConfig()
         if (_disconnectPending && !_activeVehicle && (!_btConfig || !_btConfig.linkActive)) {
             _finalizeDisconnect()
+        } else if (!_activeVehicle && !_connectionAttemptActive) {
+            _refreshDeviceLists()
+        }
+        if (_activeVehicle) {
+            _connectionAttemptActive = false
+            _connectingAddress = ""
+            _connectingDeviceName = ""
+            _userCancelled = false
+            _hasCancelled = false
+            _hasConnectionFailed = false
+            _isReconnectAborted = false
         }
     }
 
     on_IsConnectedChanged: {
         if (_isConnected) {
+            _connectionAttemptActive = false
+            _connectingAddress = ""
+            _connectingDeviceName = ""
             _wasConnectedInSession = true
+            _userCancelled = false
+            _hasCancelled = false
+            _hasConnectionFailed = false
+            _isReconnectAborted = false
+            _reconnectAttempt = 1
+            _lostElapsedSeconds = 0
         }
     }
 
     on_ConnectionStateChanged: {
         if (_connectionState === PulseGCSAircraft.Connected) {
             _wasConnectedInSession = true
+            _userCancelled = false
+            _hasCancelled = false
+            _hasConnectionFailed = false
+            _isReconnectAborted = false
+            _reconnectAttempt = 1
+            _lostElapsedSeconds = 0
+        } else if (_connectionState === PulseGCSAircraft.Connecting || _connectionState === PulseGCSAircraft.ParameterSync) {
+            if (!_userCancelled || _activeVehicle !== null) {
+                _userCancelled = false
+                _hasCancelled = false
+                _hasConnectionFailed = false
+            }
         }
     }
 
@@ -189,20 +335,22 @@ Rectangle {
         repeat: true
         onTriggered: {
             _lostElapsedSeconds++
-            if (_lostElapsedSeconds > 0 && (_lostElapsedSeconds % 8) === 0 && _reconnectAttempt < _maxReconnectAttempts) {
-                _reconnectAttempt++
-            }
-            if (_reconnectAttempt >= _maxReconnectAttempts && _lostElapsedSeconds >= (_maxReconnectAttempts * 8)) {
-                let activeCfg = _resolveActiveBtConfig()
-                if (activeCfg && !activeCfg.suppressAutoReconnect) {
-                    console.log("PulseGCS: Max recovery attempts reached (" + _maxReconnectAttempts + "). Suppressing native auto-reconnect for " + activeCfg.name)
-                    activeCfg.setSuppressAutoReconnect(true)
+            if (!_isReconnectAborted) {
+                if (_lostElapsedSeconds > 0 && (_lostElapsedSeconds % 8) === 0 && _reconnectAttempt < _maxReconnectAttempts) {
+                    _reconnectAttempt++
                 }
+                if (_reconnectAttempt >= _maxReconnectAttempts && _lostElapsedSeconds >= (_maxReconnectAttempts * 8)) {
+                    let activeCfg = _resolveActiveBtConfig()
+                    if (activeCfg && !activeCfg.suppressAutoReconnect) {
+                        console.log("PulseGCS: Max recovery attempts reached (" + _maxReconnectAttempts + "). Suppressing native auto-reconnect for " + activeCfg.name)
+                        activeCfg.setSuppressAutoReconnect(true)
+                    }
+                }
+                _statusMessage = qsTr("Communication lost with %1. Auto-reconnecting (attempt %2/%3)...")
+                                  .arg(_aircraftDisplayName())
+                                  .arg(_reconnectAttempt)
+                                  .arg(_maxReconnectAttempts)
             }
-            _statusMessage = qsTr("Communication lost with %1. Auto-reconnecting (attempt %2/%3)...")
-                              .arg(_aircraftDisplayName())
-                              .arg(_reconnectAttempt)
-                              .arg(_maxReconnectAttempts)
         }
     }
 
@@ -287,13 +435,16 @@ Rectangle {
     }
 
     function abortReconnect() {
+        _isReconnectAborted = true
         _userCancelled = true
-        _wasConnectedInSession = false
-        _autoConnectAttempted = true
-        _reconnectAttempt = 1
-        _lostElapsedSeconds = 0
-        disconnectDevice()
-        _statusMessage = qsTr("Reconnect cancelled.")
+        let activeCfg = _resolveActiveBtConfig()
+        if (activeCfg && typeof activeCfg.setSuppressAutoReconnect === "function") {
+            activeCfg.setSuppressAutoReconnect(true)
+        }
+        _hasCancelled = true
+        _hasDisconnected = false
+        _hasConnectionFailed = false
+        _statusMessage = qsTr("Reconnection failed: User terminated the action...")
     }
 
     Component.onCompleted: {
@@ -383,10 +534,19 @@ Rectangle {
         }
         _disconnectPending = false
         disconnectWatchdog.stop()
-        _hasDisconnected = true
-        _hasCancelled = false
-        _hasConnectionFailed = false
-        _statusMessage = qsTr("Disconnected")
+        if (_userCancelled) {
+            _hasDisconnected = false
+            _hasCancelled = true
+            _hasConnectionFailed = false
+            if (!_statusMessage || _statusMessage === qsTr("Disconnecting...")) {
+                _statusMessage = _isReconnectAborted ? qsTr("Reconnection cancelled.") : qsTr("Aircraft disconnected. None active.")
+            }
+        } else {
+            _hasDisconnected = true
+            _hasCancelled = false
+            _hasConnectionFailed = false
+            _statusMessage = qsTr("Aircraft disconnected. None active.")
+        }
         _refreshDeviceLists()
     }
 
@@ -413,13 +573,18 @@ Rectangle {
         if (!address) {
             return false
         }
-        if (_btConfig && _btConfig.address === address) {
+        let addrUpper = address.trim().toUpperCase()
+        if (addrUpper.length === 0 || addrUpper === "0") {
+            return false
+        }
+        if (_btConfig && (_btConfig.address || "").trim().toUpperCase() === addrUpper) {
             return true
         }
         let configs = QGroundControl.linkManager.linkConfigurations
         for (let i = 0; i < configs.count; i++) {
             let cfg = configs.get(i)
-            if (cfg && cfg.linkType === LinkConfiguration.TypeBluetooth && cfg.address === address) {
+            let cfgAddrUpper = (cfg && cfg.address) ? cfg.address.trim().toUpperCase() : ""
+            if (cfg && cfg.linkType === LinkConfiguration.TypeBluetooth && cfgAddrUpper.length > 0 && cfgAddrUpper === addrUpper) {
                 return true
             }
         }
@@ -516,6 +681,9 @@ Rectangle {
         }
 
         if (_btConfig) {
+            if (typeof _btConfig.powerOnAdapter === "function" && !_btConfig.isAdapterAvailable()) {
+                _btConfig.powerOnAdapter()
+            }
             _refreshDeviceLists()
             if (_isScanAllowed) {
                 startScan()
@@ -533,6 +701,7 @@ Rectangle {
             return
         }
         // Transition to SEARCHING state: reset prior terminal states
+        _manualScanActive = true
         _hasConnectionFailed = false
         _hasCancelled = false
         _userCancelled = false
@@ -573,7 +742,7 @@ Rectangle {
         let liveAddressMap = {}
         for (let m = 0; m < devModel.length; m++) {
             if (devModel[m] && devModel[m].address) {
-                liveAddressMap[devModel[m].address] = devModel[m]
+                liveAddressMap[devModel[m].address.trim().toUpperCase()] = devModel[m]
             }
         }
 
@@ -583,35 +752,164 @@ Rectangle {
             let osConnected = _btConfig.getConnectedDevices() || []
             for (let c = 0; c < osConnected.length; c++) {
                 if (osConnected[c] && osConnected[c].address) {
-                    connectedAddressMap[osConnected[c].address] = true
+                    connectedAddressMap[osConnected[c].address.trim().toUpperCase()] = true
                 }
             }
         }
 
         let paired = []
         let pairedAddressMap = {}
+
+        // Query confirmed paired devices from OS
         if (typeof _btConfig.getAllPairedDevices === "function") {
             let rawPaired = _btConfig.getAllPairedDevices() || []
             for (let i = 0; i < rawPaired.length; i++) {
                 let p = rawPaired[i]
                 if (p && p.address) {
-                    pairedAddressMap[p.address] = true
-                    let rawName = (p.name && p.name.trim().length > 0) ? p.name.trim() : ""
-                    let isSkyx = _isDeviceSkyx(rawName)
-                    let liveDev = liveAddressMap[p.address]
-                    let rssiVal = (liveDev && liveDev.rssi !== undefined && liveDev.rssi !== null) ? liveDev.rssi : ((p.rssi !== undefined && p.rssi !== null) ? p.rssi : 0)
-                    let isConnected = !!connectedAddressMap[p.address]
-                    let isConfigured = _isAddressConfigured(p.address)
-                    let isDetected = isConnected || isConfigured || (liveDev !== undefined) || (rssiVal !== 0)
+                    let addrUpper = p.address.trim().toUpperCase()
+                    if (addrUpper.length > 0 && addrUpper !== "0") {
+                        pairedAddressMap[addrUpper] = true
+                        _sessionPairedAddresses[addrUpper] = true
+                        let rawName = (p.name && p.name.trim().length > 0) ? p.name.trim() : ""
+                        let isSkyx = _isDeviceSkyx(rawName)
+                        let liveDev = liveAddressMap[addrUpper]
+                        let rssiVal = (liveDev && liveDev.rssi !== undefined && liveDev.rssi !== null) ? liveDev.rssi : ((p.rssi !== undefined && p.rssi !== null) ? p.rssi : 0)
+                        let isConnected = !!connectedAddressMap[addrUpper]
+                        let isConfigured = _isAddressConfigured(p.address)
+                        let isDetected = isConnected || (liveDev !== undefined) || (rssiVal !== 0)
+                        paired.push({
+                            name: rawName.length > 0 ? rawName : qsTr("Unknown Device (%1)").arg(p.address),
+                            rawName: rawName,
+                            address: p.address,
+                            rssi: rssiVal,
+                            paired: true,
+                            detected: isDetected,
+                            connected: isConnected,
+                            isConfigured: isConfigured,
+                            isSkyx: isSkyx,
+                            transportType: "bluetooth"
+                        })
+                    }
+                }
+            }
+        }
+
+        // Check if any device in live devModel is paired via isPaired() or recorded in _sessionPairedAddresses
+        for (let sIdx = 0; sIdx < devModel.length; sIdx++) {
+            let sDev = devModel[sIdx]
+            if (sDev && sDev.address) {
+                let sAddrUpper = sDev.address.trim().toUpperCase()
+                if (sAddrUpper.length > 0 && sAddrUpper !== "0" && !pairedAddressMap[sAddrUpper]) {
+                    let isDevPaired = (_btConfig && typeof _btConfig.isPaired === "function" && _btConfig.isPaired(sDev.address))
+                        || !!_sessionPairedAddresses[sAddrUpper]
+                    if (isDevPaired) {
+                        pairedAddressMap[sAddrUpper] = true
+                        _sessionPairedAddresses[sAddrUpper] = true
+                        let rawName = (sDev.name && sDev.name.trim().length > 0) ? sDev.name.trim() : ""
+                        let isSkyx = _isDeviceSkyx(rawName)
+                        let rssiVal = (sDev.rssi !== undefined && sDev.rssi !== null) ? sDev.rssi : 0
+                        let isConnected = !!connectedAddressMap[sAddrUpper]
+                        let isConfigured = _isAddressConfigured(sDev.address)
+                        let isDetected = isConnected || (rssiVal !== 0)
+                        paired.push({
+                            name: rawName.length > 0 ? rawName : qsTr("Unknown Device (%1)").arg(sDev.address),
+                            rawName: rawName,
+                            address: sDev.address,
+                            rssi: rssiVal,
+                            paired: true,
+                            detected: isDetected,
+                            connected: isConnected,
+                            isConfigured: isConfigured,
+                            isSkyx: isSkyx,
+                            transportType: "bluetooth"
+                        })
+                    }
+                }
+            }
+        }
+
+        // Include saved/known Bluetooth configurations from LinkManager
+        let configs = QGroundControl.linkManager.linkConfigurations
+        if (configs) {
+            for (let cIdx = 0; cIdx < configs.count; cIdx++) {
+                let savedCfg = configs.get(cIdx)
+                if (savedCfg && savedCfg.linkType === LinkConfiguration.TypeBluetooth && savedCfg.address) {
+                    let savedAddrUpper = savedCfg.address.trim().toUpperCase()
+                    if (savedAddrUpper.length > 0 && savedAddrUpper !== "0" && !pairedAddressMap[savedAddrUpper]) {
+                        pairedAddressMap[savedAddrUpper] = true
+                        let isOsPaired = (_btConfig && typeof _btConfig.isPaired === "function" && _btConfig.isPaired(savedCfg.address))
+                            || !!_sessionPairedAddresses[savedAddrUpper]
+                        if (isOsPaired) {
+                            _sessionPairedAddresses[savedAddrUpper] = true
+                        }
+                        let cfgName = (savedCfg.deviceName && savedCfg.deviceName.trim().length > 0)
+                            ? savedCfg.deviceName.trim()
+                            : (savedCfg.name ? savedCfg.name.trim() : "")
+                        if (cfgName.indexOf("auto-") === 0) {
+                            cfgName = cfgName.substring(5)
+                        }
+                        let isSkyx = _isDeviceSkyx(cfgName)
+                        let liveDev = liveAddressMap[savedAddrUpper]
+                        let rssiVal = (liveDev && liveDev.rssi !== undefined && liveDev.rssi !== null) ? liveDev.rssi : 0
+                        let isConnected = !!connectedAddressMap[savedAddrUpper]
+                        let isDetected = isConnected || (liveDev !== undefined) || (rssiVal !== 0)
+                        paired.push({
+                            name: cfgName.length > 0 ? cfgName : qsTr("Unknown Device (%1)").arg(savedCfg.address),
+                            rawName: cfgName,
+                            address: savedCfg.address,
+                            rssi: rssiVal,
+                            paired: isOsPaired,
+                            detected: isDetected,
+                            connected: isConnected,
+                            isConfigured: true,
+                            isSkyx: isSkyx,
+                            transportType: "bluetooth"
+                        })
+                    }
+                }
+            }
+        }
+
+        // Authoritative active connection inclusion:
+        // If an aircraft is currently connected or active, ensure its Bluetooth device entry is present in paired list
+        let activeCfg = _resolveActiveBtConfig()
+        let activeAddr = (activeCfg && activeCfg.address) ? activeCfg.address : (_connectingAddress.length > 0 ? _connectingAddress : "")
+        let activeAddrUpper = activeAddr.trim().toUpperCase()
+        if (activeAddrUpper.length > 0 && activeAddrUpper !== "0") {
+            let isActivelyConn = _isDeviceConnected(activeAddrUpper)
+            if (isActivelyConn) {
+                if (pairedAddressMap[activeAddrUpper]) {
+                    // Ensure the existing entry has connected and detected flagged true
+                    for (let pIdx = 0; pIdx < paired.length; pIdx++) {
+                        if ((paired[pIdx].address || "").trim().toUpperCase() === activeAddrUpper) {
+                            paired[pIdx].connected = true
+                            paired[pIdx].detected = true
+                            break
+                        }
+                    }
+                } else {
+                    // Active RC is connected but not returned in live discovery/paired array; add it explicitly
+                    pairedAddressMap[activeAddrUpper] = true
+                    _sessionPairedAddresses[activeAddrUpper] = true
+                    let devName = (activeCfg && activeCfg.deviceName && activeCfg.deviceName.length > 0)
+                        ? activeCfg.deviceName
+                        : (_connectingDeviceName.length > 0 ? _connectingDeviceName : (activeCfg ? activeCfg.name : ""))
+                    let cleanName = (devName && devName.trim().length > 0) ? devName.trim() : ""
+                    if (cleanName.indexOf("auto-") === 0) {
+                        cleanName = cleanName.substring(5)
+                    }
+                    let isSkyx = _isDeviceSkyx(cleanName)
+                    let liveDev = liveAddressMap[activeAddrUpper]
+                    let rssiVal = (liveDev && liveDev.rssi !== undefined && liveDev.rssi !== null) ? liveDev.rssi : 0
                     paired.push({
-                        name: rawName.length > 0 ? rawName : qsTr("Unknown Device (%1)").arg(p.address),
-                        rawName: rawName,
-                        address: p.address,
+                        name: cleanName.length > 0 ? cleanName : qsTr("Unknown Device (%1)").arg(activeAddr),
+                        rawName: cleanName,
+                        address: activeAddr,
                         rssi: rssiVal,
                         paired: true,
-                        detected: isDetected,
-                        connected: isConnected,
-                        isConfigured: isConfigured,
+                        detected: true,
+                        connected: true,
+                        isConfigured: true,
                         isSkyx: isSkyx,
                         transportType: "bluetooth"
                     })
@@ -633,27 +931,26 @@ Rectangle {
         })
         _pairedDevices = paired
 
-        // 2. Build Discovered Devices list from scanned devices and unbonded cache, excluding paired devices
+        // 2. Build Discovered Devices list from scanned devices, strictly excluding paired or configured devices
         let discoveredMap = {}
 
-        // Add any cached unbonded devices that are not in paired map
-        for (let addr in _unpairedDevicesCache) {
-            if (!pairedAddressMap[addr]) {
-                discoveredMap[addr] = _unpairedDevicesCache[addr]
-            } else {
-                delete _unpairedDevicesCache[addr]
-            }
-        }
-
-        // Reuse devModel already declared above at line 287
         for (let j = 0; j < devModel.length; j++) {
             let d = devModel[j]
             if (d && d.address) {
-                let isAlreadyPaired = pairedAddressMap[d.address] || (typeof _btConfig.isPaired === "function" && _btConfig.isPaired(d.address))
-                if (!isAlreadyPaired) {
+                let addrUpper = d.address.trim().toUpperCase()
+                if (addrUpper.length === 0 || addrUpper === "0") {
+                    continue
+                }
+                let isAlreadyPaired = pairedAddressMap[addrUpper]
+                    || !!_sessionPairedAddresses[addrUpper]
+                    || (_btConfig && typeof _btConfig.isPaired === "function" && _btConfig.isPaired(d.address))
+                let isKnownConfigured = _isAddressConfigured(d.address)
+
+                // Only genuinely unpaired and unconfigured devices belong in Discovered Aircraft
+                if (!isAlreadyPaired && !isKnownConfigured) {
                     let rawName = (d.name && d.name.trim().length > 0) ? d.name.trim() : ""
                     let isSkyx = _isDeviceSkyx(rawName)
-                    discoveredMap[d.address] = {
+                    discoveredMap[addrUpper] = {
                         name: rawName.length > 0 ? rawName : qsTr("Unknown Device (%1)").arg(d.address),
                         rawName: rawName,
                         address: d.address,
@@ -705,10 +1002,14 @@ Rectangle {
         if (!address || _connectionState !== PulseGCSAircraft.Connected || !_activeVehicle) {
             return false
         }
-        if (_btConfig && _btConfig.address === address) {
+        let addrUpper = address.trim().toUpperCase()
+        if (addrUpper.length === 0 || addrUpper === "0") {
+            return false
+        }
+        if (_btConfig && (_btConfig.address || "").trim().toUpperCase() === addrUpper) {
             return true
         }
-        if (_connectingAddress === address && _connectionState === PulseGCSAircraft.Connected) {
+        if (_connectingAddress && _connectingAddress.trim().toUpperCase() === addrUpper && _connectionState === PulseGCSAircraft.Connected) {
             return true
         }
         return false
@@ -718,10 +1019,14 @@ Rectangle {
         if (!address || !_btConfig) {
             return
         }
+        let cleanAddrUpper = address.trim().toUpperCase()
+        _pairingAddress = cleanAddrUpper
+        pairingWatchdog.restart()
         _statusMessage = qsTr("Pairing request sent to %1. Follow the on-screen prompt.").arg(address)
         if (typeof _btConfig.requestPairing === "function") {
             _btConfig.requestPairing(address)
         }
+        _refreshDeviceLists()
     }
 
     function unpairDevice(device) {
@@ -729,28 +1034,62 @@ Rectangle {
             return
         }
 
-        if (_isDeviceConnected(device.address)) {
+        let devAddrUpper = (device.address || "").trim().toUpperCase()
+        if (devAddrUpper.length === 0 || devAddrUpper === "0") {
+            return
+        }
+
+        if (_isDeviceConnected(devAddrUpper)) {
             disconnectDevice()
         }
 
-        _statusMessage = qsTr("Unpairing %1...").arg(device.name)
-        if (typeof _btConfig.removePairing === "function") {
-            _btConfig.removePairing(device.address)
+        let isOsPaired = !!device.paired
+        if (isOsPaired) {
+            _statusMessage = qsTr("Unpairing %1...").arg(device.name)
+            if (typeof _btConfig.removePairing === "function") {
+                _btConfig.removePairing(devAddrUpper)
+            }
+        } else {
+            _statusMessage = qsTr("Removed configuration for %1.").arg(device.name)
         }
 
-        _unpairedDevicesCache[device.address] = {
-            name: device.name,
-            rawName: device.rawName,
-            address: device.address,
-            rssi: device.rssi,
-            paired: false,
-            isSkyx: device.isSkyx,
-            transportType: device.transportType || "bluetooth"
+        if (typeof _sessionPairedAddresses[devAddrUpper] !== "undefined") {
+            delete _sessionPairedAddresses[devAddrUpper]
+        }
+        if (_pairingAddress === devAddrUpper) {
+            _pairingAddress = ""
+            pairingWatchdog.stop()
+        }
+        // Purge session memory for this aircraft so re-pairing doesn't falsely show "Reconnect"
+        if (_lastKnownAircraftName === (device.name || "") || _lastKnownAircraftName === (device.rawName || "")) {
+            _lastKnownAircraftName = ""
+        }
+        if (_connectingAddress === devAddrUpper) {
+            _connectingAddress = ""
+            _connectingDeviceName = ""
         }
 
-        _refreshDeviceLists()
-        if (_isScanAllowed && !_isScanning) {
-            startScan()
+        let configs = QGroundControl.linkManager.linkConfigurations
+        if (configs) {
+            for (let i = configs.count - 1; i >= 0; i--) {
+                let cfg = configs.get(i)
+                let cfgAddrUpper = (cfg && cfg.address) ? cfg.address.trim().toUpperCase() : ""
+                if (cfg && cfg.linkType === LinkConfiguration.TypeBluetooth && cfgAddrUpper.length > 0 && cfgAddrUpper === devAddrUpper) {
+                    QGroundControl.linkManager.removeConfiguration(cfg)
+                }
+            }
+        }
+        if (_btConfig && (_btConfig.address || "").trim().toUpperCase() === devAddrUpper) {
+            _btConfig = null
+        }
+
+        if (!_btConfig) {
+            _initBluetooth()
+        } else {
+            _refreshDeviceLists()
+            if (_isScanAllowed && !_isScanning) {
+                startScan()
+            }
         }
     }
 
@@ -894,7 +1233,14 @@ Rectangle {
     }
 
     function _handleConnectionError(errorMsg) {
+        if (_userCancelled) {
+            return
+        }
         if (_connectionAttemptActive || _isConnectingOrSyncing) {
+            if (_activeVehicle && _activeVehicle.vehicleLinkManager && _activeVehicle.vehicleLinkManager.communicationLost) {
+                console.log("Communication lost detected during sync; deferring to recovery")
+                return
+            }
             _connectionAttemptActive = false
             connectionWatchdog.stop()
             paramSyncWatchdog.stop()
@@ -924,7 +1270,10 @@ Rectangle {
         if (_activeVehicle && typeof _activeVehicle.closeVehicle === "function") {
             _activeVehicle.closeVehicle()
         }
-        _statusMessage = qsTr("Connection cancelled.")
+        _statusMessage = qsTr("Connection failed: User terminated the action...")
+        if (_btConfig && typeof _btConfig.powerOnAdapter === "function" && !_btConfig.isAdapterAvailable()) {
+            _btConfig.powerOnAdapter()
+        }
         _refreshDeviceLists()
     }
 
@@ -947,6 +1296,13 @@ Rectangle {
         }
 
         function onPairingStatusChanged() {
+            if (_pairingAddress.length > 0 && _btConfig && typeof _btConfig.isPaired === "function" && _btConfig.isPaired(_pairingAddress)) {
+                console.log("PulseGCS: Authoritative pairing confirmed for", _pairingAddress)
+                _sessionPairedAddresses[_pairingAddress] = true
+                _pairingAddress = ""
+                pairingWatchdog.stop()
+                _statusMessage = qsTr("Device paired successfully.")
+            }
             _refreshDeviceLists()
         }
 
@@ -962,10 +1318,18 @@ Rectangle {
         }
 
         function onErrorOccurred(errorString) {
+            if (_pairingAddress.length > 0) {
+                console.log("PulseGCS: Pairing error for", _pairingAddress, errorString)
+                _pairingAddress = ""
+                pairingWatchdog.stop()
+                _statusMessage = qsTr("Pairing failed: %1").arg(errorString)
+                _refreshDeviceLists()
+            }
             _handleConnectionError(errorString)
         }
 
         function onAdapterStateChanged() {
+            _refreshDeviceLists()
             if (_btConfig && _btConfig.adapterAvailable && _btConfig.adapterPoweredOn && _isScanAllowed && !_isScanning && _discoveredDevices.length === 0) {
                 startScan()
             }
@@ -1431,7 +1795,9 @@ Rectangle {
                     return _lastFailureDetail.length > 0 ? _lastFailureDetail : _statusMessage
                 }
                 if (_showCancelledNotice) {
-                    return qsTr("Connection cancelled. Attempt stopped by operator.")
+                    return (_statusMessage.length > 0 && _statusMessage !== qsTr("Disconnecting..."))
+                        ? _statusMessage
+                        : qsTr("Connection cancelled. Attempt stopped by operator.")
                 }
                 if (_showDisconnectedNotice) {
                     return _lastKnownAircraftName.length > 0
@@ -1440,16 +1806,9 @@ Rectangle {
                 }
                 return ""
             }
-            actionText: _showConnectionError ? qsTr("Retry") : qsTr("Search Again")
+            actionText: ""
             isOutdoor: root.isOutdoor
-            onActionClicked: {
-                if (_showConnectionError) {
-                    retryLastConnection()
-                } else if (_isScanAllowed) {
-                    _manualScanActive = true
-                    startScan()
-                }
-            }
+            onActionClicked: {}
         }
 
 
@@ -1804,14 +2163,16 @@ Rectangle {
 
                             Text {
                                 Layout.fillWidth: true
-                                text: _isRecoveryFailed
-                                    ? qsTr("Automatic reconnection attempts exhausted. Confirm the aircraft is powered on and in range.")
-                                    : (_lostElapsedSeconds < 4
-                                        ? qsTr("Link interrupted. Stand by while PulseGCS attempts automatic recovery.")
-                                        : qsTr("Attempting to restore link to %1 — attempt %2 of %3.")
-                                            .arg(_aircraftDisplayName())
-                                            .arg(root._reconnectAttempt)
-                                            .arg(root._maxReconnectAttempts))
+                                text: _isReconnectAborted
+                                    ? qsTr("Reconnection failed: User terminated the action. You may retry or disconnect.")
+                                    : (_isRecoveryFailed
+                                        ? qsTr("Automatic reconnection attempts exhausted. Confirm the aircraft is powered on and in range.")
+                                        : (_lostElapsedSeconds < 4
+                                            ? qsTr("Link interrupted. Stand by while PulseGCS attempts automatic recovery.")
+                                            : qsTr("Attempting to restore link to %1 — attempt %2 of %3.")
+                                                .arg(_aircraftDisplayName())
+                                                .arg(root._reconnectAttempt)
+                                                .arg(root._maxReconnectAttempts)))
                                 font.pixelSize: 11
                                 color: PulseGCSTokens.mutedText(root.isOutdoor)
                                 wrapMode: Text.WordWrap
@@ -1821,7 +2182,7 @@ Rectangle {
                             PulseGCSProgressBar {
                                 Layout.fillWidth: true
                                 Layout.topMargin: 2
-                                visible: !_isRecoveryFailed
+                                visible: !_isRecoveryFailed && !_isReconnectAborted
                                 indeterminate: true
                                 isOutdoor: root.isOutdoor
                                 barColor: _lostElapsedSeconds < 4 ? PulseGCSTokens.statusColor("warn", root.isOutdoor) : PulseGCSTokens.accentColor(root.isOutdoor)
@@ -1835,9 +2196,9 @@ Rectangle {
 
                         Item { Layout.fillWidth: true }
 
-                        // Cancel / Abort Reconnect
+                        // Cancel Reconnect (available while actively retrying and not aborted)
                         Button {
-                            visible: !_isRecoveryFailed
+                            visible: !_isRecoveryFailed && !_isReconnectAborted
                             text: qsTr("Cancel Reconnect")
                             implicitHeight: 30
                             font.pixelSize: 11
@@ -1860,9 +2221,38 @@ Rectangle {
                             }
                         }
 
+                        // Disconnect (available when user aborted reconnection)
+                        Button {
+                            visible: _isReconnectAborted
+                            text: qsTr("Disconnect")
+                            implicitHeight: 30
+                            font.pixelSize: 11
+                            font.bold: true
+                            onClicked: {
+                                _isReconnectAborted = false
+                                _wasConnectedInSession = false
+                                disconnectDevice()
+                            }
+
+                            contentItem: Text {
+                                text: parent.text
+                                font: parent.font
+                                color: PulseGCSTokens.statusColor("err", root.isOutdoor)
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                renderType: Text.QtRendering
+                            }
+                            background: Rectangle {
+                                radius: 6
+                                color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
+                                border.color: PulseGCSTokens.statusColor("err", root.isOutdoor)
+                                border.width: 1
+                            }
+                        }
+
                         // Search Again (available when failed)
                         Button {
-                            visible: _isRecoveryFailed
+                            visible: _isRecoveryFailed && !_isReconnectAborted
                             text: qsTr("Search Again")
                             implicitHeight: 30
                             font.pixelSize: 11
@@ -1891,13 +2281,15 @@ Rectangle {
                             }
                         }
 
-                        // Retry Now
+                        // Retry Now / Retry
                         Button {
-                            text: qsTr("Retry Now")
+                            text: _isReconnectAborted ? qsTr("Retry") : qsTr("Retry Now")
                             implicitHeight: 30
                             font.pixelSize: 11
                             font.bold: true
                             onClicked: {
+                                root._isReconnectAborted = false
+                                root._userCancelled = false
                                 root._reconnectAttempt = 1
                                 root._lostElapsedSeconds = 0
                                 root.retryLastConnection()
@@ -2075,8 +2467,13 @@ Rectangle {
                             font.pixelSize: 11
                             font.bold: true
                             onClicked: {
-                                if (typeof mainWindow !== "undefined" && mainWindow && typeof mainWindow.showVehicleConfig === "function") {
-                                    mainWindow.showVehicleConfig()
+                                if (typeof mainWindow !== "undefined" && mainWindow) {
+                                    if (typeof mainWindow.hideConnectAircraft === "function") {
+                                        mainWindow.hideConnectAircraft()
+                                    }
+                                    if (typeof mainWindow.showVehicleConfig === "function") {
+                                        mainWindow.showVehicleConfig()
+                                    }
                                 }
                             }
                             contentItem: Text {
@@ -2105,12 +2502,12 @@ Rectangle {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 8
-                    visible: !_isConnected && !_isConnectingOrSyncing && _pairedDevices.length > 0
+                    visible: !_isConnected && !_isCommunicationLost && !_isConnectingOrSyncing && _pairedDevices.length > 0
 
                     RowLayout {
                         Layout.fillWidth: true
                         Text {
-                            text: qsTr("Paired Aircraft (%1)").arg(_pairedDevices.length)
+                            text: qsTr("Paired Devices (%1)").arg(_pairedDevices.length)
                             font.pixelSize: 13
                             font.bold: true
                             color: PulseGCSTokens.primaryText(root.isOutdoor)
@@ -2126,7 +2523,9 @@ Rectangle {
                             Layout.fillWidth: true
                             deviceName: modelData.name
                             deviceAddress: modelData.address
-                            subtitleText: modelData.address
+                            subtitleText: (!modelData.paired && modelData.isConfigured)
+                                ? qsTr("Saved Link · %1").arg(modelData.address)
+                                : modelData.address
                             transportType: modelData.transportType || "bluetooth"
                             isSkyx: modelData.isSkyx
                             showIdentityBadge: true
@@ -2170,6 +2569,8 @@ Rectangle {
                                     return ""
                                 } else if (_connectionAttemptActive && _connectingAddress === modelData.address) {
                                     return qsTr("Cancel")
+                                } else if (modelData.isConfigured) {
+                                    return qsTr("Reconnect")
                                 } else {
                                     return qsTr("Connect")
                                 }
@@ -2183,7 +2584,8 @@ Rectangle {
                             }
 
                             onSecondaryActionClicked: {
-                                unpairDevice(modelData)
+                                _unpairTargetDevice = modelData
+                                unpairConfirmPopup.open()
                             }
 
                             onPrimaryActionClicked: {
@@ -2205,12 +2607,12 @@ Rectangle {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 8
-                    visible: !_isConnected && !_isConnectingOrSyncing && _discoveredDevices.length > 0
+                    visible: !_isConnected && !_isCommunicationLost && !_isConnectingOrSyncing && _discoveredDevices.length > 0
 
                     RowLayout {
                         Layout.fillWidth: true
                         Text {
-                            text: qsTr("Discovered Aircraft (%1)").arg(_discoveredDevices.length)
+                            text: qsTr("Discovered Devices (%1)").arg(_discoveredDevices.length)
                             font.pixelSize: 13
                             font.bold: true
                             color: PulseGCSTokens.primaryText(root.isOutdoor)
@@ -2239,10 +2641,13 @@ Rectangle {
                             rssi: modelData.rssi || 0
                             showSignal: true
                             isOutdoor: root.isOutdoor
-                            isSelected: _connectionAttemptActive && _connectingAddress === modelData.address
+                            isSelected: (_pairingAddress.length > 0 && _pairingAddress === (modelData.address || "").trim().toUpperCase())
+                                        || (_connectionAttemptActive && _connectingAddress === modelData.address)
 
-                            primaryActionText: (_connectionAttemptActive && _connectingAddress === modelData.address) ? qsTr("Pairing...") : qsTr("Pair")
-                            primaryActionEnabled: !_connectionAttemptActive
+                            primaryActionText: (_pairingAddress.length > 0 && _pairingAddress === (modelData.address || "").trim().toUpperCase())
+                                ? qsTr("Pairing...")
+                                : qsTr("Pair")
+                            primaryActionEnabled: !_connectionAttemptActive && (_pairingAddress.length === 0 || _pairingAddress !== (modelData.address || "").trim().toUpperCase())
 
                             onPrimaryActionClicked: {
                                 pairDevice(modelData.address)
@@ -2261,7 +2666,7 @@ Rectangle {
                     color: PulseGCSTokens.surfaceElevatedBackground(root.isOutdoor)
                     border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
                     border.width: 1
-                    visible: !_isConnected && !_isConnectingOrSyncing && !_isScanning && !_scanTimedOut && _discoveredDevices.length === 0 && _pairedDevices.length === 0
+                    visible: !_isConnected && !_isCommunicationLost && !_isConnectingOrSyncing && !_isScanning && !_scanTimedOut && _discoveredDevices.length === 0 && _pairedDevices.length === 0
 
                     ColumnLayout {
                         id: emptyCol

@@ -206,7 +206,12 @@ GEMINI.md
 .envrc
 .direnv/
 .tool-versions
-.python-version
 !tools/.python-version
+# Custom PulseGCS documentation & AI tracking
+.ai/
+docs/CONNECT_AIRCRAFT_FLOWCHART.html
+docs/PULSEGCS_WORKFLOW.md
+docs/RC_UNPAIR_DISCOVERY_CONTEXT.md
 *.keystore
 coding_style/
+README.jpg

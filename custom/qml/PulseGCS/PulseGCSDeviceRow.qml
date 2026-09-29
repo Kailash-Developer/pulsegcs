@@ -97,15 +97,15 @@ Rectangle {
                 fillMode: Image.PreserveAspectFit
                 source: {
                     if (root.transportType === "ble" || root.transportType === "bluetooth") {
-                        return "/res/bluetooth.svg"
+                        return "/InstrumentValueIcons/bluetooth.svg"
                     }
                     if (root.transportType === "wifi" || root.transportType === "udp" || root.transportType === "tcp") {
-                        return "/res/wifi.svg"
+                        return "/qmlimages/wifi.svg"
                     }
                     if (root.transportType === "serial" || root.transportType === "usb") {
-                        return "/res/usb.svg"
+                        return "/InstrumentValueIcons/usb.svg"
                     }
-                    return "/res/aircraft.svg"
+                    return "/InstrumentValueIcons/airplane.svg"
                 }
                 color: root.isSkyx ? (root.isOutdoor ? PulseGCSTokens.outdoorAccent : PulseGCSTokens.accent)
                                    : (root.isOutdoor ? PulseGCSTokens.outdoorTextMuted : PulseGCSTokens.textMuted)

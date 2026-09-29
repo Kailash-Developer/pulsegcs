@@ -30,13 +30,37 @@ ApplicationWindow {
     leftPadding:   0
     rightPadding:  0
 
+    function _isAircraftReady() {
+        const vehicle = QGroundControl.multiVehicleManager.activeVehicle
+        if (!vehicle) {
+            return false
+        }
+        if (vehicle.vehicleLinkManager && vehicle.vehicleLinkManager.communicationLost) {
+            return false
+        }
+        const info = (typeof PulseGCSAircraftManager !== "undefined") ? PulseGCSAircraftManager.activeAircraftInfo : null
+        if (info) {
+            if (info.connectionState === PulseGCSAircraft.CommunicationLost) {
+                return false
+            }
+            return info.connectionState === PulseGCSAircraft.Connected
+        }
+        return !!(vehicle.parameterManager && vehicle.parameterManager.parametersReady)
+    }
+
+    function _restoreStartupView() {
+        if (_isAircraftReady()) {
+            showFlyView()
+        } else {
+            showConnectAircraft()
+        }
+    }
+
     Component.onCompleted: {
         // Start the sequence of first run prompt(s) only if splash is not active
         if (typeof PulseGCSStartupController === "undefined" || !PulseGCSStartupController.active) {
             firstRunPromptManager.nextPrompt()
-            if (!QGroundControl.multiVehicleManager.activeVehicle) {
-                mainWindow.showConnectAircraft()
-            }
+            mainWindow._restoreStartupView()
         }
     }
 
@@ -44,9 +68,7 @@ ApplicationWindow {
         target: (typeof PulseGCSStartupController !== "undefined") ? PulseGCSStartupController : null
         function onStartupFinished() {
             firstRunPromptManager.nextPrompt()
-            if (!QGroundControl.multiVehicleManager.activeVehicle) {
-                mainWindow.showConnectAircraft()
-            }
+            mainWindow._restoreStartupView()
         }
     }
 
@@ -210,7 +232,9 @@ ApplicationWindow {
         toolDrawer.visible = false
         if (connectAircraftPanel) {
             connectAircraftPanel.visible = true
-            connectAircraftPanel.startScan()
+            if (!connectAircraftPanel._isConnected && !QGroundControl.multiVehicleManager.activeVehicle && !connectAircraftPanel._connectionAttemptActive) {
+                connectAircraftPanel.startScan()
+            }
         }
     }
 

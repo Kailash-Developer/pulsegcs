@@ -126,7 +126,7 @@ void PulseGCSAircraftInfo::restoreConnectionState()
         _setConnectionState(PulseGCS::ConnectionState::Disconnected);
         return;
     }
-    if (_communicationLost) {
+    if (_communicationLost && (_hasEstablishedSession || _connectionState == PulseGCS::ConnectionState::ParameterSync)) {
         _setConnectionState(PulseGCS::ConnectionState::CommunicationLost);
         return;
     }
@@ -156,6 +156,7 @@ void PulseGCSAircraftInfo::_onAllLinksRemoved(Vehicle *vehicle)
     qCDebug(PulseGCSAircraftLog) << "allLinksRemoved for systemId:" << _systemId;
     _vehicle = nullptr;
     _communicationLost = false;
+    _hasEstablishedSession = false;
     emit communicationLostChanged(false);
     _setConnectionState(PulseGCS::ConnectionState::Disconnected);
 }
@@ -253,7 +254,9 @@ void PulseGCSAircraftInfo::_onCommunicationLostChanged(bool communicationLost)
     }
 
     if (_communicationLost) {
-        _setConnectionState(PulseGCS::ConnectionState::CommunicationLost);
+        if (_hasEstablishedSession || _connectionState == PulseGCS::ConnectionState::ParameterSync) {
+            _setConnectionState(PulseGCS::ConnectionState::CommunicationLost);
+        }
     } else {
         restoreConnectionState();
     }
@@ -283,6 +286,12 @@ void PulseGCSAircraftInfo::_setConnectionState(PulseGCS::ConnectionState newStat
     qCDebug(PulseGCSAircraftLog) << "systemId:" << _systemId << "connectionState:"
                                 << static_cast<int>(_connectionState)
                                 << "->" << static_cast<int>(newState);
+    if (newState == PulseGCS::ConnectionState::Connected) {
+        _hasEstablishedSession = true;
+    } else if (newState == PulseGCS::ConnectionState::Disconnected ||
+               newState == PulseGCS::ConnectionState::InitialFailed) {
+        _hasEstablishedSession = false;
+    }
     _connectionState = newState;
     emit connectionStateChanged(_connectionState);
 }

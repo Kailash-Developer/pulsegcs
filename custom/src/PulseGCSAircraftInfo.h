@@ -88,4 +88,5 @@ private:
     bool _isSkyx = false;
     bool _isDuplicateIdentity = false;
     bool _communicationLost = false;
+    bool _hasEstablishedSession = false;
 };
