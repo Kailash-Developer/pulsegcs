@@ -135,7 +135,11 @@ Rectangle {
             if (_pairingAddress.length > 0) {
                 console.log("PulseGCS: Pairing attempt timed out for", _pairingAddress)
                 _pairingAddress = ""
-                _statusMessage = qsTr("Pairing timed out. Confirm the aircraft is in pairing mode and retry.")
+                _lastFailureDetail = qsTr("Pairing timed out. Confirm the aircraft is in pairing mode and retry.")
+                _statusMessage = _lastFailureDetail
+                _hasConnectionFailed = true
+                _hasCancelled = false
+                _hasDisconnected = false
                 _refreshDeviceLists()
             }
         }
@@ -180,13 +184,7 @@ Rectangle {
         && !_isCommunicationLost
         && (_connectionState === PulseGCSAircraft.Connected
             || (_activeVehicle.parameterManager && _activeVehicle.parameterManager.parametersReady))
-    readonly property bool _isRCLostOnly: _isConnected
-        && !_isCommunicationLost
-        && _activeVehicle !== null
-        && (
-            (_activeVehicle.vehicle && _activeVehicle.vehicle.rcRSSI && _activeVehicle.vehicle.rcRSSI.value === 255)
-            || ((_activeVehicle.sensorsUnhealthyBits & 0x10000) !== 0 && !_activeVehicle.allSensorsHealthy)
-        )
+    readonly property bool _isRCLostOnly: false
     readonly property bool _isParameterSyncing: !_isConnected
         && !_isCommunicationLost
         && !_hasCancelled
@@ -470,7 +468,7 @@ Rectangle {
                     let pct = Math.round(_discoveryProgress * 100)
                     _statusMessage = qsTr("Syncing parameters (%1%)...").arg(pct)
                 }
-            } else if (_btConfig && !_isScanning && _isScanAllowed) {
+            } else if (_btConfig && !_isScanning && _isScanAllowed && !_hasConnectionFailed && !_hasCancelled && !_hasDisconnected) {
                 startScan()
             }
         }
@@ -557,13 +555,14 @@ Rectangle {
         if (!device) {
             return "auto-Aircraft"
         }
+        let cleanAddr = (device.address && device.address.length > 0) ? device.address.replace(/[:-]/g, "").toUpperCase() : ""
+        let suffix = cleanAddr.length >= 4 ? cleanAddr.slice(-4) : cleanAddr
+
         let cleanName = (device.rawName && device.rawName.trim().length > 0) ? device.rawName.trim() : (device.name ? device.name.trim() : "")
         if (cleanName.length > 0 && cleanName.indexOf("Unknown Device") !== 0) {
-            return "auto-" + cleanName
+            return suffix.length > 0 ? ("auto-" + cleanName + "-" + suffix) : ("auto-" + cleanName)
         }
-        if (device.address && device.address.length > 0) {
-            let cleanAddr = device.address.replace(/[:-]/g, "").toUpperCase()
-            let suffix = cleanAddr.length >= 4 ? cleanAddr.slice(-4) : cleanAddr
+        if (suffix.length > 0) {
             return "auto-" + suffix
         }
         return "auto-Aircraft"
@@ -722,6 +721,9 @@ Rectangle {
         if (_btConfig && _btConfig.scanning) {
             _btConfig.stopScan()
         }
+        _manualScanActive = false
+        _scanElapsedSeconds = 0
+        scanElapsedTimer.stop()
     }
 
     function _isDeviceSkyx(name) {
@@ -831,40 +833,51 @@ Rectangle {
         // Include saved/known Bluetooth configurations from LinkManager
         let configs = QGroundControl.linkManager.linkConfigurations
         if (configs) {
-            for (let cIdx = 0; cIdx < configs.count; cIdx++) {
+            for (let cIdx = configs.count - 1; cIdx >= 0; cIdx--) {
                 let savedCfg = configs.get(cIdx)
                 if (savedCfg && savedCfg.linkType === LinkConfiguration.TypeBluetooth && savedCfg.address) {
                     let savedAddrUpper = savedCfg.address.trim().toUpperCase()
-                    if (savedAddrUpper.length > 0 && savedAddrUpper !== "0" && !pairedAddressMap[savedAddrUpper]) {
-                        pairedAddressMap[savedAddrUpper] = true
+                    if (savedAddrUpper.length > 0 && savedAddrUpper !== "0") {
                         let isOsPaired = (_btConfig && typeof _btConfig.isPaired === "function" && _btConfig.isPaired(savedCfg.address))
                             || !!_sessionPairedAddresses[savedAddrUpper]
-                        if (isOsPaired) {
+
+                        if (!isOsPaired) {
+                            // User unpaired in Android Settings: remove stale configuration from LinkManager
+                            console.log("PulseGCS: Stale unbonded Bluetooth config detected for", savedCfg.address, "- removing configuration")
+                            QGroundControl.linkManager.removeConfiguration(savedCfg)
+                            if (_btConfig === savedCfg) {
+                                _btConfig = null
+                            }
+                            continue
+                        }
+
+                        if (!pairedAddressMap[savedAddrUpper]) {
+                            pairedAddressMap[savedAddrUpper] = true
                             _sessionPairedAddresses[savedAddrUpper] = true
+                            let cfgName = (savedCfg.deviceName && savedCfg.deviceName.trim().length > 0)
+                                ? savedCfg.deviceName.trim()
+                                : (savedCfg.name ? savedCfg.name.trim() : "")
+                            if (cfgName.indexOf("auto-") === 0) {
+                                cfgName = cfgName.substring(5)
+                            }
+                            let isSkyx = _isDeviceSkyx(cfgName)
+                            let liveDev = liveAddressMap[savedAddrUpper]
+                            let rssiVal = (liveDev && liveDev.rssi !== undefined && liveDev.rssi !== null) ? liveDev.rssi : 0
+                            let isConnected = !!connectedAddressMap[savedAddrUpper]
+                            let isDetected = isConnected || (liveDev !== undefined) || (rssiVal !== 0)
+                            paired.push({
+                                name: cfgName.length > 0 ? cfgName : qsTr("Unknown Device (%1)").arg(savedCfg.address),
+                                rawName: cfgName,
+                                address: savedCfg.address,
+                                rssi: rssiVal,
+                                paired: true,
+                                detected: isDetected,
+                                connected: isConnected,
+                                isConfigured: true,
+                                isSkyx: isSkyx,
+                                transportType: "bluetooth"
+                            })
                         }
-                        let cfgName = (savedCfg.deviceName && savedCfg.deviceName.trim().length > 0)
-                            ? savedCfg.deviceName.trim()
-                            : (savedCfg.name ? savedCfg.name.trim() : "")
-                        if (cfgName.indexOf("auto-") === 0) {
-                            cfgName = cfgName.substring(5)
-                        }
-                        let isSkyx = _isDeviceSkyx(cfgName)
-                        let liveDev = liveAddressMap[savedAddrUpper]
-                        let rssiVal = (liveDev && liveDev.rssi !== undefined && liveDev.rssi !== null) ? liveDev.rssi : 0
-                        let isConnected = !!connectedAddressMap[savedAddrUpper]
-                        let isDetected = isConnected || (liveDev !== undefined) || (rssiVal !== 0)
-                        paired.push({
-                            name: cfgName.length > 0 ? cfgName : qsTr("Unknown Device (%1)").arg(savedCfg.address),
-                            rawName: cfgName,
-                            address: savedCfg.address,
-                            rssi: rssiVal,
-                            paired: isOsPaired,
-                            detected: isDetected,
-                            connected: isConnected,
-                            isConfigured: true,
-                            isSkyx: isSkyx,
-                            transportType: "bluetooth"
-                        })
                     }
                 }
             }
@@ -941,13 +954,39 @@ Rectangle {
                 if (addrUpper.length === 0 || addrUpper === "0") {
                     continue
                 }
-                let isAlreadyPaired = pairedAddressMap[addrUpper]
+                let isDevPaired = pairedAddressMap[addrUpper]
                     || !!_sessionPairedAddresses[addrUpper]
-                    || (_btConfig && typeof _btConfig.isPaired === "function" && _btConfig.isPaired(d.address))
+                    || (_btConfig && typeof _btConfig.isPaired === "function" && _btConfig.isPaired(d.address) === true)
                 let isKnownConfigured = _isAddressConfigured(d.address)
 
+                if (isDevPaired) {
+                    if (!pairedAddressMap[addrUpper]) {
+                        pairedAddressMap[addrUpper] = true
+                        _sessionPairedAddresses[addrUpper] = true
+                        let rawName = (d.name && d.name.trim().length > 0) ? d.name.trim() : ""
+                        let isSkyx = _isDeviceSkyx(rawName)
+                        let rssiVal = (d.rssi !== undefined && d.rssi !== null) ? d.rssi : 0
+                        let isConnected = !!connectedAddressMap[addrUpper]
+                        let isConfigured = isKnownConfigured
+                        let isDetected = isConnected || (rssiVal !== 0)
+                        paired.push({
+                            name: rawName.length > 0 ? rawName : qsTr("Unknown Device (%1)").arg(d.address),
+                            rawName: rawName,
+                            address: d.address,
+                            rssi: rssiVal,
+                            paired: true,
+                            detected: isDetected,
+                            connected: isConnected,
+                            isConfigured: isConfigured,
+                            isSkyx: isSkyx,
+                            transportType: "bluetooth"
+                        })
+                    }
+                    continue
+                }
+
                 // Only genuinely unpaired and unconfigured devices belong in Discovered Aircraft
-                if (!isAlreadyPaired && !isKnownConfigured) {
+                if (!isKnownConfigured) {
                     let rawName = (d.name && d.name.trim().length > 0) ? d.name.trim() : ""
                     let isSkyx = _isDeviceSkyx(rawName)
                     discoveredMap[addrUpper] = {
@@ -977,23 +1016,25 @@ Rectangle {
         _discoveredDevices = discovered
 
         // 3. Known / Paired Aircraft Auto-Connect
-        // If a stored/known paired aircraft is currently available and no vehicle or connection
-        // attempt is active, automatically initiate connection without manual user interaction.
-        // NOTE: Do NOT auto-connect if user explicitly requested a manual scan (_manualScanActive).
-        if (!_hasDisconnected && !_manualScanActive && !_autoConnectAttempted && !_userCancelled && !_connectionAttemptActive && !_isCommunicationLost && !_disconnectPending && _activeVehicle === null) {
-            let availablePaired = null
-            for (let k = 0; k < _pairedDevices.length; k++) {
-                let dev = _pairedDevices[k]
-                if (dev.connected || dev.isConfigured || dev.detected || _isAddressConfigured(dev.address)) {
-                    availablePaired = dev
-                    break
-                }
-            }
+        // Requirement:
+        // - If EXACTLY 1 device is paired (_pairedDevices.length === 1), automatically initiate connection.
+        // - If more than 1 device is paired (or 0), do NOT auto-connect; pilot must choose from the list.
+        // - If connection fails or is cancelled, do NOT re-attempt auto-connect.
+        if (!_hasDisconnected && !_hasConnectionFailed && !_hasCancelled && !_manualScanActive
+            && !_autoConnectAttempted && !_userCancelled && !_connectionAttemptActive
+            && !_isCommunicationLost && !_disconnectPending && _activeVehicle === null) {
 
-            if (availablePaired) {
+            if (_pairedDevices.length === 1) {
+                let singlePaired = _pairedDevices[0]
+                if (singlePaired && (singlePaired.connected || singlePaired.isConfigured || singlePaired.detected || _isAddressConfigured(singlePaired.address))) {
+                    _autoConnectAttempted = true
+                    console.log("PulseGCS: Exactly 1 paired aircraft available (" + singlePaired.name + "), automatically connecting to connecting panel...")
+                    connectDevice(singlePaired)
+                }
+            } else if (_pairedDevices.length > 1) {
+                // More than 1 paired device: do not auto-connect, mark as attempted so it stays on the paired device selection list
                 _autoConnectAttempted = true
-                console.log("PulseGCS: Known aircraft available (" + availablePaired.name + "), automatically connecting immediately...")
-                connectDevice(availablePaired)
+                console.log("PulseGCS: Multiple paired devices detected (" + _pairedDevices.length + "). Auto-connect suppressed; awaiting pilot selection.")
             }
         }
     }
@@ -1045,13 +1086,16 @@ Rectangle {
 
         let isOsPaired = !!device.paired
         if (isOsPaired) {
-            _statusMessage = qsTr("Unpairing %1...").arg(device.name)
+            _statusMessage = qsTr("Unpaired %1 successfully.").arg(device.name)
             if (typeof _btConfig.removePairing === "function") {
                 _btConfig.removePairing(devAddrUpper)
             }
         } else {
             _statusMessage = qsTr("Removed configuration for %1.").arg(device.name)
         }
+        _hasCancelled = true
+        _hasConnectionFailed = false
+        _hasDisconnected = false
 
         if (typeof _sessionPairedAddresses[devAddrUpper] !== "undefined") {
             delete _sessionPairedAddresses[devAddrUpper]
@@ -1113,6 +1157,7 @@ Rectangle {
         _connectingDeviceName = (device.rawName && device.rawName.length > 0) ? device.rawName : device.name
         _lastKnownAircraftName = _connectingDeviceName
         _connectionAttemptActive = true
+        _autoConnectAttempted = true
         _userCancelled = false
         _manualScanActive = false
         _lastFailureDetail = ""
@@ -1579,6 +1624,7 @@ Rectangle {
                 }
 
                 onClicked: {
+                    stopScan()
                     root.closed()
                     if (typeof mainWindow !== "undefined" && mainWindow && typeof mainWindow.showFlyView === "function") {
                         mainWindow.showFlyView()
@@ -2414,18 +2460,30 @@ Rectangle {
 
                         PulseGCSStatusPill {
                             status: {
-                                if (_isRCLostOnly) return "warn"
                                 if (_connectionState === PulseGCSAircraft.ParameterSync) return "accentpill"
-                                if (_activeVehicle && _activeVehicle.healthAndArmingCheckReport && _activeVehicle.healthAndArmingCheckReport.supported) {
-                                    if (!_activeVehicle.healthAndArmingCheckReport.canArm && _activeVehicle.healthAndArmingCheckReport.problemsForCurrentMode.count > 0) return "warn"
+                                if (_activeVehicle) {
+                                    if (_activeVehicle.healthAndArmingCheckReport && _activeVehicle.healthAndArmingCheckReport.supported) {
+                                        if (!_activeVehicle.healthAndArmingCheckReport.canArm) return "err"
+                                        if (_activeVehicle.healthAndArmingCheckReport.hasWarningsOrErrors) return "warn"
+                                        return "ok"
+                                    } else if (_activeVehicle.readyToFlyAvailable) {
+                                        return _activeVehicle.readyToFly ? "ok" : "warn"
+                                    } else {
+                                        return (_activeVehicle.allSensorsHealthy && _activeVehicle.autopilotPlugin && _activeVehicle.autopilotPlugin.setupComplete) ? "ok" : "warn"
+                                    }
                                 }
                                 return "ok"
                             }
                             text: {
-                                if (_isRCLostOnly) return qsTr("RC NOT READY")
                                 if (_connectionState === PulseGCSAircraft.ParameterSync) return qsTr("CHECKING")
-                                if (_activeVehicle && _activeVehicle.healthAndArmingCheckReport && _activeVehicle.healthAndArmingCheckReport.supported) {
-                                    if (!_activeVehicle.healthAndArmingCheckReport.canArm && _activeVehicle.healthAndArmingCheckReport.problemsForCurrentMode.count > 0) return qsTr("NOT READY")
+                                if (_activeVehicle) {
+                                    if (_activeVehicle.healthAndArmingCheckReport && _activeVehicle.healthAndArmingCheckReport.supported) {
+                                        return _activeVehicle.healthAndArmingCheckReport.canArm ? qsTr("READY") : qsTr("NOT READY")
+                                    } else if (_activeVehicle.readyToFlyAvailable) {
+                                        return _activeVehicle.readyToFly ? qsTr("READY") : qsTr("NOT READY")
+                                    } else {
+                                        return (_activeVehicle.allSensorsHealthy && _activeVehicle.autopilotPlugin && _activeVehicle.autopilotPlugin.setupComplete) ? qsTr("READY") : qsTr("NOT READY")
+                                    }
                                 }
                                 return qsTr("READY")
                             }
@@ -2448,10 +2506,17 @@ Rectangle {
                                         parts.push(qsTr("GPS: %1 Sats").arg(sats))
                                     }
                                 }
-                                if (_isRCLostOnly) {
-                                    parts.push(qsTr("RC Signal: Not Detected"))
+                                if (_activeVehicle && _activeVehicle.rcRSSI && _activeVehicle.rcRSSI.rawValue > 0 && _activeVehicle.rcRSSI.rawValue <= 100) {
+                                    parts.push(qsTr("RC: %1%").arg(Math.round(_activeVehicle.rcRSSI.rawValue)))
                                 }
-                                let issues = (_activeVehicle && _activeVehicle.healthAndArmingCheckReport && _activeVehicle.healthAndArmingCheckReport.problemsForCurrentMode) ? _activeVehicle.healthAndArmingCheckReport.problemsForCurrentMode.count : 0
+                                let issues = 0
+                                if (_activeVehicle) {
+                                    if (_activeVehicle.healthAndArmingCheckReport && _activeVehicle.healthAndArmingCheckReport.supported && _activeVehicle.healthAndArmingCheckReport.problemsForCurrentMode) {
+                                        issues = _activeVehicle.healthAndArmingCheckReport.problemsForCurrentMode.count
+                                    } else if (!_activeVehicle.allSensorsHealthy) {
+                                        issues = 1
+                                    }
+                                }
                                 parts.push(issues === 1 ? qsTr("1 Issue") : qsTr("%1 Issues").arg(issues))
                                 return parts.join("  •  ")
                             }
