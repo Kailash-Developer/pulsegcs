@@ -1540,10 +1540,10 @@ Rectangle {
                 Layout.alignment: Qt.AlignVCenter
 
                 QGCVectorImage {
-                    height: ScreenTools.defaultFontPixelHeight * 2
-                    width: height
-                    source: qgcPal.globalTheme === QGCPalette.Light ? "/res/pulsegcs-mark-light-bg.svg" : "/res/pulsegcs-mark-dark-bg.svg"
-                    anchors.verticalCenter: parent.verticalCenter
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2
+                    Layout.preferredWidth:  Layout.preferredHeight
+                    Layout.alignment:       Qt.AlignVCenter
+                    source:                 qgcPal.globalTheme === QGCPalette.Light ? "/res/pulsegcs-mark-light-bg.svg" : "/res/pulsegcs-mark-dark-bg.svg"
                 }
 
                 Text {
