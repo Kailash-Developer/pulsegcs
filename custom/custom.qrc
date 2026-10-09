@@ -7,6 +7,8 @@
         <file alias="PulseGCS/pulsegcs-mark-color.png">res/PulseGCS/pulsegcs-mark-color.png</file>
         <file alias="wordmark-lockup-dark-bg.svg">res/Custom/res/wordmark-lockup-dark-bg.svg</file>
         <file alias="wordmark-lockup-light-bg.svg">res/Custom/res/wordmark-lockup-light-bg.svg</file>
+        <file alias="pulsegcs-mark-dark-bg.svg">res/Custom/res/pulsegcs-mark-dark-bg.svg</file>
+        <file alias="pulsegcs-mark-light-bg.svg">res/Custom/res/pulsegcs-mark-light-bg.svg</file>
         <file alias="QGCLogoFull.svg">res/Custom/res/QGCLogoFull.svg</file>
         <file alias="QGCLogoArrow.svg">res/Custom/res/QGCLogoArrow.svg</file>
         <file alias="QGCLogoWhite.svg">res/Custom/res/QGCLogoWhite.svg</file>

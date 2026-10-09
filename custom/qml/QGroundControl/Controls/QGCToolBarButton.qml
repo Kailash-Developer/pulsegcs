@@ -37,8 +37,8 @@ Button {
         QGCVectorImage {
             visible:                button.logo
             height:                 ScreenTools.defaultFontPixelHeight * 2
-            width:                  button.logo ? (height * (700.0 / 160.0)) : height
-            source:                 visible ? (qgcPal.globalTheme === QGCPalette.Light ? "/res/wordmark-lockup-light-bg.svg" : "/res/wordmark-lockup-dark-bg.svg") : ""
+            width:                  button.logo ? height : height
+            source:                 visible ? (qgcPal.globalTheme === QGCPalette.Light ? "/res/pulsegcs-mark-light-bg.svg" : "/res/pulsegcs-mark-dark-bg.svg") : ""
             anchors.verticalCenter: parent.verticalCenter
         }
         QGCColoredImage {

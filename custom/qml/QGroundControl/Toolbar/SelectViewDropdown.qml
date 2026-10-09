@@ -11,6 +11,7 @@ ToolIndicatorPage {
     id: root
 
     property real _toolButtonHeight: ScreenTools.defaultFontPixelHeight * 3
+    readonly property bool _isOffline: QGroundControl.multiVehicleManager.activeVehicle === null
 
     contentComponent: Component {
         GridLayout {
@@ -24,6 +25,7 @@ ToolIndicatorPage {
                 Layout.fillWidth: true
                 text: qsTr("Fly")
                 imageResource: "/res/FlyingPaperPlane.svg"
+                visible: !_isOffline
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()
@@ -52,7 +54,7 @@ ToolIndicatorPage {
                 Layout.fillWidth: true
                 text: qsTr("Analyze")
                 imageResource: "/qmlimages/Analyze.svg"
-                visible: QGroundControl.corePlugin.showAdvancedUI
+                visible: !_isOffline && QGroundControl.corePlugin.showAdvancedUI
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()
@@ -68,6 +70,7 @@ ToolIndicatorPage {
                 Layout.fillWidth: true
                 text: qsTr("Configure")
                 imageResource: "/res/GearWithPaperPlane.svg"
+                visible: !_isOffline
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()
