@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.1.0",
+  "last_updated": "2026-10-09T11:42:00+05:30",
+  "milestone": "Milestone 2 (UI Fixes Complete)",
+  "nodes": {
+    "ConnectAircraftPanel": {
+      "type": "QML Component",
+      "file": "custom/qml/PulseGCS/ConnectAircraftPanel.qml",
+      "state_variables": [
+        "_connectionState",
+        "_pairedDevices",
+        "_discoveredDevices",
+        "_autoConnectAttempted",
+        "_wasConnectedInSession",
+        "_isCommunicationLost"
+      ],
+      "responsibilities": "Aircraft discovery, Bluetooth pairing, MAVLink connection pipeline, pre-arm UI indicators, comm-loss recovery, top header branding."
+    },
+    "PulseGCSNoticeBar": {
+      "type": "UI Component",
+      "file": "custom/qml/PulseGCS/PulseGCSNoticeBar.qml",
+      "rule": "actionText must be empty string (\"\") across all instances. Acts as pure informational banner without embedded action buttons."
+    },
+    "CustomOverrides": {
+      "type": "CMake Configuration",
+      "file": "custom/cmake/CustomOverrides.cmake",
+      "current_product_version": "0.2.0"
+    },
+    "VehicleReadiness": {
+      "type": "Telemetry Evaluation",
+      "authoritative_source": "_activeVehicle.healthAndArmingCheckReport.canArm",
+      "fallback_sources": ["readyToFly", "allSensorsHealthy"]
+    },
+    "UniversalLogoMark": {
+      "type": "Asset",
+      "files": [
+        "custom/res/Custom/res/pulsegcs-mark-dark-bg.svg",
+        "custom/res/Custom/res/pulsegcs-mark-light-bg.svg"
+      ],
+      "viewBox": "0 0 104 104",
+      "aspect_ratio": "1:1 square",
+      "usages": [
+        "custom/qml/QGroundControl/Controls/QGCToolBarButton.qml",
+        "custom/qml/PulseGCS/ConnectAircraftPanel.qml"
+      ]
+    },
+    "SelectViewDropdown": {
+      "type": "QML Component",
+      "file": "custom/qml/QGroundControl/Toolbar/SelectViewDropdown.qml",
+      "state_variables": [
+        "_isOffline"
+      ],
+      "offline_visibility_rule": "_isOffline hides Fly, Configure, and Analyze buttons; Plan, Aircraft, Settings, Close remain visible."
+    }
+  },
+  "transitions": [
+    {
+      "from": "App Launch (1 paired device)",
+      "to": "Connecting Card (Stage 4A)",
+      "condition": "_pairedDevices.length === 1 && !_hasFailed && !_hasCancelled",
+      "action": "connectDevice(singlePaired)"
+    },
+    {
+      "from": "App Launch (>1 paired devices)",
+      "to": "Scan Aircraft Panel (Paired List)",
+      "condition": "_pairedDevices.length > 1",
+      "action": "Suppress auto-connect; show individual Reconnect buttons"
+    },
+    {
+      "from": "Connecting / Parameter Sync Failure / Timeout",
+      "to": "Scan Aircraft Panel",
+      "condition": "15s / 60s Watchdog triggers OR user cancel",
+      "action": "Show pure info notice banner, suppress auto-connect for session"
+    },
+    {
+      "from": "Connected (In-Flight)",
+      "to": "Communication Lost Card",
+      "condition": "_wasConnectedInSession && heartbeat lost",
+      "action": "8-second reconnect loop (attempts 1 to 5)"
+    }
+  ],
+  "rules": {
+    "zero_leakage": "Each user story must be developed in its own feature branch and tested in its own test branch.",
+    "token_efficiency": "Agents must read .context_ledger.md and .graphify_knowledge.json first. Never re-crawl the codebase for established architecture."
+  }
+}

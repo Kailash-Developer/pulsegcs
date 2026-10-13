@@ -1539,6 +1539,13 @@ Rectangle {
                 spacing: 8
                 Layout.alignment: Qt.AlignVCenter
 
+                QGCVectorImage {
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2
+                    Layout.preferredWidth:  Layout.preferredHeight
+                    Layout.alignment:       Qt.AlignVCenter
+                    source:                 qgcPal.globalTheme === QGCPalette.Light ? "/res/pulsegcs-mark-light-bg.svg" : "/res/pulsegcs-mark-dark-bg.svg"
+                }
+
                 Text {
                     text: qsTr("Connect Aircraft")
                     font.pixelSize: 18
