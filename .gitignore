@@ -215,3 +215,5 @@ docs/RC_UNPAIR_DISCOVERY_CONTEXT.md
 *.keystore
 coding_style/
 README.jpg
+.context_ledger.md
+.graphify_knowledge.json

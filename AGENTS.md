@@ -136,12 +136,26 @@ Milestone Baseline Branch (e.g. M3-US01-US11)
 
 ---
 
-## Context Ledger & Graphify Knowledge Architecture (Strict Token Efficiency)
+## Strict Git & Governance Rules
+
+### 1. No Auto-Commit (Mandatory User Confirmation)
+- **STRICT PROHIBITION**: Antigravity, subagents, and tools MUST **NEVER auto-commit** code changes to Git on their own.
+- When development on any user story or milestone is implemented, tested, and finalized, the agent MUST present the summary of changes and **explicitly ask the user for permission** to commit.
+- Commit execution is only permitted after receiving clear, affirmative user authorization.
+
+### 2. Zero Upstream Tampering
+- All modifications MUST be isolated strictly to `custom/`.
+- Modifying files under upstream QGroundControl `src/` is strictly prohibited.
+
+---
+
+## Context Ledger & Graphify Knowledge Architecture (Out of Git & Strict Token Efficiency)
 
 Enforced universally for all agents, subagents, and sessions to eliminate redundant codebase reading and maximize token efficiency.
 
 ### Core Principle
-Agents must **NEVER** re-read the broader codebase to understand system architecture, past decisions, or established workflows. Instead, agents must read the living **Context Ledger** (`.context_ledger.md`) and the **Graphify Knowledge Map** (`.graphify_knowledge.json` / diagrams). Full file inspection is strictly prohibited unless targeting a precise, minimal line range for an active edit.
+- The Context Ledger (`.context_ledger.md`) and Graphify Knowledge Base (`.graphify_knowledge.json`) are **STRICTLY OUT OF GIT** (added to `.gitignore`). They serve exclusively as local machine/agent memory for token efficiency and must never be tracked or committed to Git.
+- Agents must **NEVER** re-read the broader codebase to understand system architecture, past decisions, or established workflows. Instead, agents must read `.context_ledger.md` and `.graphify_knowledge.json`. Full file inspection is strictly prohibited unless targeting a precise, minimal line range for an active edit.
 
 ### 1. The Context Ledger (`.context_ledger.md`)
 Maintained continuously at the workspace root as a living transcript:
