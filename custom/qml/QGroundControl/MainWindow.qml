@@ -48,7 +48,28 @@ ApplicationWindow {
         return !!(vehicle.parameterManager && vehicle.parameterManager.parametersReady)
     }
 
+    property bool userAuthenticated: false
+
+    function showSignIn() {
+        if (typeof PulseGCSStartupController !== "undefined") {
+            PulseGCSStartupController.requestPortraitOrientation()
+        }
+        flyView.visible = false
+        planView.visible = false
+        toolDrawer.visible = false
+        if (connectAircraftPanel) {
+            connectAircraftPanel.visible = false
+        }
+        if (signInView) {
+            signInView.visible = true
+        }
+    }
+
     function _restoreStartupView() {
+        if (!userAuthenticated) {
+            showSignIn()
+            return
+        }
         if (_isAircraftReady()) {
             showFlyView()
         } else {
@@ -57,9 +78,11 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
-        // Start the sequence of first run prompt(s) only if splash is not active
+        // Start the sequence of first run prompt(s) only if splash is not active and user is authenticated
         if (typeof PulseGCSStartupController === "undefined" || !PulseGCSStartupController.active) {
-            firstRunPromptManager.nextPrompt()
+            if (userAuthenticated) {
+                firstRunPromptManager.nextPrompt()
+            }
             mainWindow._restoreStartupView()
         }
     }
@@ -67,7 +90,9 @@ ApplicationWindow {
     Connections {
         target: (typeof PulseGCSStartupController !== "undefined") ? PulseGCSStartupController : null
         function onStartupFinished() {
-            firstRunPromptManager.nextPrompt()
+            if (userAuthenticated) {
+                firstRunPromptManager.nextPrompt()
+            }
             mainWindow._restoreStartupView()
         }
     }
@@ -179,6 +204,9 @@ ApplicationWindow {
         if (connectAircraftPanel) {
             connectAircraftPanel.visible = false
         }
+        if (signInView) {
+            signInView.visible = false
+        }
     }
 
     function showFlyView() {
@@ -187,6 +215,9 @@ ApplicationWindow {
         toolDrawer.visible = false
         if (connectAircraftPanel) {
             connectAircraftPanel.visible = false
+        }
+        if (signInView) {
+            signInView.visible = false
         }
     }
 
@@ -230,6 +261,9 @@ ApplicationWindow {
         flyView.visible = false
         planView.visible = false
         toolDrawer.visible = false
+        if (signInView) {
+            signInView.visible = false
+        }
         if (connectAircraftPanel) {
             connectAircraftPanel.visible = true
             if (!connectAircraftPanel._isConnected && !QGroundControl.multiVehicleManager.activeVehicle && !connectAircraftPanel._connectionAttemptActive) {
@@ -417,6 +451,32 @@ ApplicationWindow {
         onAdvancedConnectionRequested: {
             mainWindow.hideConnectAircraft()
             mainWindow.showSettingsTool("LinkSettings")
+        }
+    }
+
+    PulseGCSSignInView {
+        id: signInView
+        objectName: "pulseGcsSignInView"
+        anchors.fill: parent
+        visible: false
+        z: 10001
+        onSignInSucceeded: function(email) {
+            if (typeof PulseGCSStartupController !== "undefined") {
+                PulseGCSStartupController.requestLandscapeOrientation()
+            }
+            mainWindow.userAuthenticated = true
+            signInView.visible = false
+            firstRunPromptManager.nextPrompt()
+            mainWindow.showConnectAircraft()
+        }
+        onDemoModeClicked: function() {
+            if (typeof PulseGCSStartupController !== "undefined") {
+                PulseGCSStartupController.requestLandscapeOrientation()
+            }
+            mainWindow.userAuthenticated = true
+            signInView.visible = false
+            firstRunPromptManager.nextPrompt()
+            mainWindow.showConnectAircraft()
         }
     }
 

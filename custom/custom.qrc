@@ -37,6 +37,12 @@
         <file alias="PulseGCSNoticeBar.qml">qml/PulseGCS/PulseGCSNoticeBar.qml</file>
         <file alias="PulseGCSReadinessSummary.qml">qml/PulseGCS/PulseGCSReadinessSummary.qml</file>
         <file alias="PulseGCSReconnectBanner.qml">qml/PulseGCS/PulseGCSReconnectBanner.qml</file>
+        <file alias="PulseGCSSignInView.qml">qml/PulseGCS/PulseGCSSignInView.qml</file>
+        <file alias="PulseGCSAuthValidator.qml">qml/PulseGCS/PulseGCSAuthValidator.qml</file>
+        <file alias="PulseGCSPasswordField.qml">qml/PulseGCS/PulseGCSPasswordField.qml</file>
+        <file alias="PulseGCSSignInCard.qml">qml/PulseGCS/PulseGCSSignInCard.qml</file>
+        <file alias="PulseGCSRegistrationCard.qml">qml/PulseGCS/PulseGCSRegistrationCard.qml</file>
+        <file alias="PulseGCSRecoveryCard.qml">qml/PulseGCS/PulseGCSRecoveryCard.qml</file>
         <file alias="qmldir">qml/PulseGCS/qmldir</file>
     </qresource>
     <qresource prefix="/Custom/qml/QGroundControl">
