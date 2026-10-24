@@ -1,0 +1,3800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PulseGCS M3 — Client UI/UX Studio (US01 & US02)</title>
+<style>
+  :root {
+    /* Exact M2 Indoor Dark Tokens (from PulseGCSTokens.qml) */
+    --indoor-ink: #0A1420;
+    --indoor-surface-panel: #112537;
+    --indoor-surface-elevated: #16324A;
+    --indoor-surface-toolbar: #0D1B2A;
+    --indoor-text-primary: #EAF4FB;
+    --indoor-text-muted: #9FB7CC;
+    --indoor-text-meta: #6E869D;
+    --indoor-accent: #2FD0E8;
+    --indoor-accent-hover: #5BDCF0;
+    --indoor-accent-core: #00C4DE;
+    --indoor-card-tint: rgba(47, 208, 232, 0.08);
+    --indoor-border-subtle: rgba(140, 163, 184, 0.16);
+    --indoor-button-surface: #16283A;
+    --indoor-err: #F0684F;
+    --indoor-err-bg: rgba(240, 104, 79, 0.14);
+    --indoor-ok: #3ED598;
+    --indoor-ok-bg: rgba(62, 213, 152, 0.14);
+    --indoor-warn: #F2B84B;
+    --indoor-warn-bg: rgba(242, 184, 75, 0.14);
+
+    /* Exact M2 Outdoor Light Tokens (from PulseGCSTokens.qml) */
+    --outdoor-window: #FFFFFF;
+    --outdoor-window-shade: #EDF2F6;
+    --outdoor-window-shade-light: #F6F9FB;
+    --outdoor-window-shade-dark: #DCE5EC;
+    --outdoor-text-primary: #14202B;
+    --outdoor-text-muted: #4C6072;
+    --outdoor-text-meta: #748899;
+    --outdoor-accent: #0092A8;
+    --outdoor-accent-hover: #00B2CC;
+    --outdoor-accent-core: #00788A;
+    --outdoor-card-tint: rgba(0, 146, 168, 0.07);
+    --outdoor-border-subtle: #DCE5EC;
+    --outdoor-button-surface: #FFFFFF;
+    --outdoor-err: #C13A24;
+    --outdoor-err-bg: rgba(193, 58, 36, 0.10);
+    --outdoor-ok: #178A57;
+    --outdoor-ok-bg: rgba(23, 138, 87, 0.11);
+    --outdoor-warn: #97650B;
+    --outdoor-warn-bg: rgba(151, 101, 11, 0.11);
+
+    /* M2 Geometries */
+    --radius-card: 10px;
+    --radius-control: 8px;
+    --radius-button: 7px;
+    --radius-pill: 999px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Space Grotesk", sans-serif; }
+  
+  body {
+    background: #060D15;
+    color: #eaf4fb;
+    padding: 16px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header & Studio Navigation Bar */
+  .studio-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 14px;
+  }
+  .studio-title {
+    font-size: 17px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: 0.2px;
+  }
+  .tag-badge {
+    background: #2FD0E8;
+    color: #0A1420;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+  }
+
+  /* Controls Navigation Bar */
+  .studio-nav {
+    display: flex;
+    gap: 12px;
+    background: #0d1a29;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+    border: 1px solid rgba(140, 163, 184, 0.15);
+  }
+  .nav-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #9fb7cc;
+  }
+  
+  button.screen-pill {
+    background: #16283a;
+    color: #eaf4fb;
+    border: 1px solid rgba(140, 163, 184, 0.25);
+    padding: 6px 13px;
+    border-radius: 20px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  button.screen-pill:hover {
+    border-color: #2FD0E8;
+  }
+  button.screen-pill.active {
+    background: #2FD0E8;
+    color: #0A1420;
+    font-weight: 700;
+    border-color: #2FD0E8;
+    box-shadow: 0 0 12px rgba(47, 208, 232, 0.4);
+  }
+
+  button.tool-btn {
+    background: #16283a;
+    color: #eaf4fb;
+    border: 1px solid rgba(140, 163, 184, 0.25);
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  button.tool-btn:hover { border-color: #2FD0E8; }
+  button.tool-btn.active {
+    background: #16324A;
+    border-color: #2FD0E8;
+    color: #2FD0E8;
+  }
+
+  /* Stage & Viewport */
+  .stage-container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    flex: 1;
+    gap: 18px;
+  }
+
+  /* Authentic Screen Viewport (Strictly Clean - Zero Developer Controls) */
+  .screen-viewport {
+    position: relative;
+    width: 960px;
+    height: 560px;
+    border-radius: 12px;
+    box-shadow: 0 25px 60px rgba(0,0,0,0.65);
+    border: 1px solid rgba(255,255,255,0.12);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.25s ease;
+    flex-shrink: 0;
+  }
+  .screen-viewport.wide-mode {
+    width: 1040px;
+    height: 580px;
+  }
+  .screen-viewport.portrait-mode {
+    width: 460px;
+    height: 740px;
+  }
+
+  /* Theme Applied Rules */
+  .theme-dark {
+    background-color: var(--indoor-ink);
+    color: var(--indoor-text-primary);
+  }
+  .theme-light {
+    background-color: var(--outdoor-window);
+    color: var(--outdoor-text-primary);
+  }
+
+  /* PulseGCS Panel Top Navigation Header (Removed across all panels for clean card layout) */
+  .panel-top-header {
+    display: none !important;
+  }
+  .theme-dark .panel-top-header {
+    background: transparent;
+    border-bottom: none;
+  }
+  .theme-light .panel-top-header {
+    background: transparent;
+    border-bottom: none;
+  }
+
+  .header-left-cluster {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .header-logo-icon {
+    width: 22px;
+    height: 22px;
+    display: block;
+  }
+  .header-panel-title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+  .theme-dark .header-panel-title { color: var(--indoor-text-primary); }
+  .theme-light .header-panel-title { color: var(--outdoor-text-primary); }
+
+  .header-panel-sub {
+    font-size: 12px;
+    font-weight: 500;
+    opacity: 0.65;
+    margin-left: 4px;
+  }
+
+  .header-right-cluster {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Clickable Action Button (Matching ConnectAircraftPanel scanBtn / exitBtn) */
+  .header-demo-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    padding: 0 16px;
+    border-radius: var(--radius-button); /* 7px matching PulseGCSTokens */
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.2px;
+    border: 1px solid;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .theme-light .header-demo-btn {
+    background: var(--outdoor-button-surface); /* Plain white #FFFFFF */
+    border-color: #B0C0CE; /* Clean dark/slate border */
+    color: var(--outdoor-text-primary); /* #14202B dark text, no blue */
+  }
+  .theme-light .header-demo-btn:hover {
+    background: var(--outdoor-window-shade-light); /* #F6F9FB */
+    border-color: #8C9EAE;
+  }
+  .theme-light .header-demo-btn:active {
+    background: var(--outdoor-window-shade-dark); /* #DCE5EC */
+  }
+  .theme-dark .header-demo-btn {
+    background: var(--indoor-button-surface); /* #16283A */
+    border-color: rgba(140, 163, 184, 0.22);
+    color: var(--indoor-text-primary); /* #EAF4FB */
+  }
+  .theme-dark .header-demo-btn:hover {
+    background: var(--indoor-surface-elevated); /* #16324A */
+    border-color: rgba(140, 163, 184, 0.4);
+  }
+  .theme-dark .header-demo-btn:active {
+    background: #1C3E5E;
+  }
+
+  /* Body Container */
+  .panel-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 20px;
+    position: relative;
+    overflow-y: auto;
+  }
+
+  /* ========================================================================= */
+  /* POP-UP NOTIFICATION BANNER (Top Floating — Zero Truncation, High Usability) */
+  /* ========================================================================= */
+  .floating-notice-anchor {
+    position: absolute;
+    top: 56px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    z-index: 100;
+    pointer-events: none;
+    padding: 0 16px;
+  }
+  .gcs-floating-popup {
+    pointer-events: auto;
+    width: 600px;
+    max-width: 95%;
+    border-radius: 8px;
+    border-width: 1px;
+    border-style: solid;
+    padding: 11px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.55);
+    backdrop-filter: blur(10px);
+    animation: popSlideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transition: all 0.2s ease;
+  }
+  @keyframes popSlideDown {
+    0% { transform: translateY(-14px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+
+  .theme-dark .popup-err {
+    background: rgba(28, 16, 20, 0.95);
+    border-color: var(--indoor-err);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.65), 0 0 16px rgba(240, 104, 79, 0.25);
+  }
+  .theme-dark .popup-warn {
+    background: rgba(28, 22, 14, 0.95);
+    border-color: var(--indoor-warn);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.65), 0 0 16px rgba(242, 184, 75, 0.25);
+  }
+  .theme-dark .popup-info {
+    background: rgba(14, 28, 40, 0.95);
+    border-color: var(--indoor-accent);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.65), 0 0 16px rgba(47, 208, 232, 0.25);
+  }
+  .theme-dark .popup-ok {
+    background: rgba(14, 30, 24, 0.95);
+    border-color: var(--indoor-ok);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.65), 0 0 16px rgba(62, 213, 152, 0.25);
+  }
+
+  .theme-light .popup-err {
+    background: rgba(255, 246, 245, 0.97);
+    border-color: var(--outdoor-err);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.12), 0 0 12px rgba(193, 58, 36, 0.15);
+  }
+  .theme-light .popup-warn {
+    background: rgba(255, 251, 242, 0.97);
+    border-color: var(--outdoor-warn);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.12), 0 0 12px rgba(151, 101, 11, 0.15);
+  }
+  .theme-light .popup-info {
+    background: rgba(242, 251, 254, 0.97);
+    border-color: var(--outdoor-accent);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.12), 0 0 12px rgba(0, 146, 168, 0.15);
+  }
+  .theme-light .popup-ok {
+    background: rgba(242, 254, 248, 0.97);
+    border-color: var(--outdoor-ok);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.12), 0 0 12px rgba(23, 138, 87, 0.15);
+  }
+
+  .popup-icon-badge {
+    font-size: 16px;
+    line-height: 1;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+  .popup-content-block {
+    flex: 1;
+  }
+  .popup-title {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 3px;
+  }
+  .theme-dark .popup-err .popup-title { color: var(--indoor-err); }
+  .theme-dark .popup-warn .popup-title { color: var(--indoor-warn); }
+  .theme-dark .popup-info .popup-title { color: var(--indoor-accent); }
+  .theme-dark .popup-ok .popup-title { color: var(--indoor-ok); }
+
+  .theme-light .popup-err .popup-title { color: var(--outdoor-err); }
+  .theme-light .popup-warn .popup-title { color: var(--outdoor-warn); }
+  .theme-light .popup-info .popup-title { color: var(--outdoor-accent); }
+  .theme-light .popup-ok .popup-title { color: var(--outdoor-ok); }
+
+  .popup-message-body {
+    font-size: 11.5px;
+    line-height: 1.4;
+    word-break: break-word;
+    opacity: 0.92;
+  }
+  .theme-dark .popup-message-body { color: var(--indoor-text-primary); }
+  .theme-light .popup-message-body { color: var(--outdoor-text-primary); }
+
+  .popup-actions-block {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .popup-action-btn {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid;
+    transition: all 0.15s ease;
+  }
+  .theme-dark .popup-err .popup-action-btn { color: var(--indoor-err); border-color: var(--indoor-err); }
+  .theme-dark .popup-warn .popup-action-btn { color: var(--indoor-warn); border-color: var(--indoor-warn); }
+  .theme-dark .popup-info .popup-action-btn { color: var(--indoor-accent); border-color: var(--indoor-accent); }
+  .theme-dark .popup-ok .popup-action-btn { color: var(--indoor-ok); border-color: var(--indoor-ok); }
+
+  .theme-light .popup-err .popup-action-btn { color: var(--outdoor-err); border-color: var(--outdoor-err); }
+  .theme-light .popup-warn .popup-action-btn { color: var(--outdoor-warn); border-color: var(--outdoor-warn); }
+  .theme-light .popup-info .popup-action-btn { color: var(--outdoor-accent); border-color: var(--outdoor-accent); }
+  .theme-light .popup-ok .popup-action-btn { color: var(--outdoor-ok); border-color: var(--outdoor-ok); }
+
+  .popup-close-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.6;
+    font-size: 15px;
+    cursor: pointer;
+    padding: 2px 4px;
+    line-height: 1;
+    transition: opacity 0.15s;
+  }
+  .popup-close-btn:hover { opacity: 1; }
+
+  /* ========================================================================= */
+  /* PulseGCS In-Card Notice Bar Component (Expanded Auto-Height, No Ellipsis) */
+  /* ========================================================================= */
+  .pulsegcs-notice-bar {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-height: 38px;
+    padding: 9px 12px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-style: solid;
+    font-size: 11.5px;
+    box-sizing: border-box;
+    margin-bottom: 14px;
+    width: 100%;
+    transition: all 0.2s ease;
+  }
+  .theme-dark .notice-bar-info { background: var(--indoor-card-tint); border-color: var(--indoor-accent); }
+  .theme-dark .notice-bar-info .notice-bar-icon { color: var(--indoor-accent); }
+  .theme-dark .notice-bar-warn { background: var(--indoor-warn-bg); border-color: var(--indoor-warn); }
+  .theme-dark .notice-bar-warn .notice-bar-icon { color: var(--indoor-warn); }
+  .theme-dark .notice-bar-err { background: var(--indoor-err-bg); border-color: var(--indoor-err); }
+  .theme-dark .notice-bar-err .notice-bar-icon { color: var(--indoor-err); }
+  .theme-dark .notice-bar-ok { background: var(--indoor-ok-bg); border-color: var(--indoor-ok); }
+  .theme-dark .notice-bar-ok .notice-bar-icon { color: var(--indoor-ok); }
+
+  .theme-light .notice-bar-info { background: var(--outdoor-card-tint); border-color: var(--outdoor-accent); }
+  .theme-light .notice-bar-info .notice-bar-icon { color: var(--outdoor-accent); }
+  .theme-light .notice-bar-warn { background: var(--outdoor-warn-bg); border-color: var(--outdoor-warn); }
+  .theme-light .notice-bar-warn .notice-bar-icon { color: var(--outdoor-warn); }
+  .theme-light .notice-bar-err { background: var(--outdoor-err-bg); border-color: var(--outdoor-err); }
+  .theme-light .notice-bar-err .notice-bar-icon { color: var(--outdoor-err); }
+  .theme-light .notice-bar-ok { background: var(--outdoor-ok-bg); border-color: var(--outdoor-ok); }
+  .theme-light .notice-bar-ok .notice-bar-icon { color: var(--outdoor-ok); }
+
+  .notice-bar-icon {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.2;
+    flex-shrink: 0;
+  }
+  .notice-bar-message {
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.4;
+    flex: 1;
+    white-space: normal;
+    word-break: break-word;
+  }
+  .theme-dark .notice-bar-message { color: var(--indoor-text-primary); }
+  .theme-light .notice-bar-message { color: var(--outdoor-text-primary); }
+
+  .notice-bar-action-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    border: 1px solid currentColor;
+    margin-top: 1px;
+  }
+  .theme-dark .notice-bar-info .notice-bar-action-btn { color: var(--indoor-accent); }
+  .theme-dark .notice-bar-warn .notice-bar-action-btn { color: var(--indoor-warn); }
+  .theme-dark .notice-bar-err .notice-bar-action-btn { color: var(--indoor-err); }
+  .theme-dark .notice-bar-ok .notice-bar-action-btn { color: var(--indoor-ok); }
+
+  .theme-light .notice-bar-info .notice-bar-action-btn { color: var(--outdoor-accent); }
+  .theme-light .notice-bar-warn .notice-bar-action-btn { color: var(--outdoor-warn); }
+  .theme-light .notice-bar-err .notice-bar-action-btn { color: var(--outdoor-err); }
+  .theme-light .notice-bar-ok .notice-bar-action-btn { color: var(--outdoor-ok); }
+
+  /* PulseGCS Cards */
+  .gcs-card {
+    width: 100%;
+    margin: auto 0;
+    border-radius: var(--radius-card);
+    transition: all 0.2s ease;
+  }
+  .gcs-card.signin-card {
+    max-width: 440px;
+    padding: 26px 28px 22px 28px;
+  }
+  /* Sequential Step Registration Cards (Focused, single section) */
+  .gcs-card.step1-card {
+    max-width: 480px;
+    padding: 22px 28px;
+  }
+  .gcs-card.step2-card {
+    max-width: 530px;
+    padding: 20px 28px;
+  }
+  .gcs-card.pending-card {
+    max-width: 750px;
+    padding: 18px 22px;
+  }
+
+  .theme-dark .gcs-card {
+    background: var(--indoor-surface-panel);
+    border: 1px solid var(--indoor-border-subtle);
+    box-shadow: 0 16px 36px rgba(0,0,0,0.35);
+  }
+  .theme-light .gcs-card {
+    background: var(--outdoor-window-shade);
+    border: 1px solid var(--outdoor-border-subtle);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.06);
+  }
+
+  /* Brand Lockup */
+  .brand-lockup {
+    text-align: center;
+    margin-bottom: 18px;
+  }
+  .logo-svg {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 6px auto;
+    display: block;
+  }
+  .app-name {
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+  }
+  .app-subtitle {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    margin-top: 3px;
+  }
+  .theme-dark .app-subtitle { color: var(--indoor-text-muted); }
+  .theme-light .app-subtitle { color: var(--outdoor-text-muted); }
+
+  /* ========================================================================= */
+  /* Step Wizard Progress Bar                                                  */
+  /* ========================================================================= */
+  .step-progress-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(140, 163, 184, 0.16);
+  }
+  .step-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #9FB7CC;
+    cursor: pointer;
+  }
+  .step-item.active {
+    color: var(--indoor-accent);
+    font-weight: 700;
+  }
+  .theme-light .step-item.active {
+    color: var(--outdoor-accent);
+  }
+  .step-item.completed {
+    color: var(--indoor-ok);
+  }
+  .theme-light .step-item.completed {
+    color: var(--outdoor-ok);
+  }
+
+  .step-number-circle {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1.5px solid rgba(140, 163, 184, 0.35);
+  }
+  .step-item.active .step-number-circle {
+    border-color: var(--indoor-accent);
+    background: rgba(47, 208, 232, 0.16);
+    color: var(--indoor-accent);
+  }
+  .theme-light .step-item.active .step-number-circle {
+    border-color: var(--outdoor-accent);
+    background: rgba(0, 146, 168, 0.12);
+    color: var(--outdoor-accent);
+  }
+  .step-item.completed .step-number-circle {
+    border-color: var(--indoor-ok);
+    background: rgba(62, 213, 152, 0.16);
+    color: var(--indoor-ok);
+  }
+  .theme-light .step-item.completed .step-number-circle {
+    border-color: var(--outdoor-ok);
+    background: rgba(23, 138, 87, 0.12);
+    color: var(--outdoor-ok);
+  }
+
+  .step-connector-line {
+    width: 48px;
+    height: 2px;
+    background: rgba(140, 163, 184, 0.2);
+    margin: 0 12px;
+  }
+  .step-connector-line.completed {
+    background: var(--indoor-ok);
+  }
+  .theme-light .step-connector-line.completed {
+    background: var(--outdoor-ok);
+  }
+
+  /* Input Fields */
+  .form-group {
+    margin-bottom: 12px;
+    text-align: left;
+  }
+  .form-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11.5px;
+    font-weight: 600;
+    margin-bottom: 5px;
+    letter-spacing: 0.1px;
+  }
+  .theme-dark .form-label-row { color: var(--indoor-text-primary); }
+  .theme-light .form-label-row { color: var(--outdoor-text-primary); }
+
+  .required-badge {
+    color: var(--indoor-err);
+    margin-left: 2px;
+  }
+  .optional-badge {
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.7;
+  }
+
+  .gcs-input-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .gcs-input, select.gcs-select {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: var(--radius-control);
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+  .theme-dark .gcs-input, .theme-dark select.gcs-select {
+    background: var(--indoor-surface-elevated);
+    border: 1px solid var(--indoor-border-subtle);
+    color: var(--indoor-text-primary);
+  }
+  .theme-dark .gcs-input:focus, .theme-dark select.gcs-select:focus {
+    border-color: var(--indoor-accent);
+  }
+  .theme-light .gcs-input, .theme-light select.gcs-select {
+    background: var(--outdoor-window);
+    border: 1px solid var(--outdoor-border-subtle);
+    color: var(--outdoor-text-primary);
+  }
+  .theme-light .gcs-input:focus, .theme-light select.gcs-select:focus {
+    border-color: var(--outdoor-accent);
+  }
+
+  .input-invalid {
+    border-color: var(--indoor-err) !important;
+    background: rgba(240, 104, 79, 0.08) !important;
+  }
+  .field-error-msg {
+    font-size: 10px;
+    color: var(--indoor-err);
+    margin-top: 3px;
+    display: none;
+  }
+
+  .input-helper {
+    font-size: 10.5px;
+    margin-top: 3px;
+    opacity: 0.7;
+    line-height: 1.35;
+  }
+
+  .pw-toggle-btn {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.65;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    transition: opacity 0.15s ease;
+  }
+  .pw-toggle-btn:hover {
+    opacity: 1;
+  }
+
+  /* Simple Console Binding Card */
+  .console-binding-card {
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border: 1px solid;
+    transition: all 0.2s ease;
+  }
+  .theme-dark .console-binding-card {
+    background: rgba(22, 50, 74, 0.65);
+    border-color: rgba(140, 163, 184, 0.22);
+  }
+  .theme-dark .console-binding-card.bound {
+    background: rgba(22, 50, 74, 0.85);
+    border-color: rgba(47, 208, 232, 0.5);
+  }
+  .theme-light .console-binding-card {
+    background: #F4F7FA;
+    border-color: var(--outdoor-border-subtle);
+  }
+  .theme-light .console-binding-card.bound {
+    background: #E8F4F7;
+    border-color: var(--outdoor-accent);
+  }
+
+  .binding-simple-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .binding-label-group {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .binding-main-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+  }
+
+  /* Help Icon Button */
+  .help-circle-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    opacity: 0.65;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px;
+    border-radius: 50%;
+    transition: all 0.15s ease;
+  }
+  .help-circle-btn:hover {
+    opacity: 1;
+    color: var(--indoor-accent);
+  }
+  .theme-light .help-circle-btn:hover {
+    color: var(--outdoor-accent);
+  }
+
+  /* Expandable Help Box */
+  .binding-help-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.45;
+    animation: fadeInModal 0.2s ease-out;
+  }
+  .theme-dark .binding-help-box {
+    background: rgba(10, 20, 32, 0.6);
+    border: 1px solid rgba(140, 163, 184, 0.2);
+    color: var(--indoor-text-muted);
+  }
+  .theme-light .binding-help-box {
+    background: #FFFFFF;
+    border: 1px solid #DCE5EC;
+    color: var(--outdoor-text-muted);
+  }
+  .help-box-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    font-size: 11px;
+  }
+  .theme-dark .help-box-header strong { color: var(--indoor-text-primary); }
+  .theme-light .help-box-header strong { color: var(--outdoor-text-primary); }
+  .help-box-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    color: inherit;
+    opacity: 0.6;
+    padding: 2px;
+  }
+  .help-box-close:hover { opacity: 1; }
+
+  .gcs-toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 38px;
+    height: 20px;
+    flex-shrink: 0;
+    margin-left: 12px;
+  }
+  .gcs-toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .gcs-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(140, 163, 184, 0.35);
+    transition: 0.25s;
+    border-radius: 20px;
+    border: 1px solid rgba(140, 163, 184, 0.25);
+  }
+  .gcs-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+    background-color: #EAF4FB;
+    transition: 0.25s;
+    border-radius: 50%;
+  }
+  .gcs-toggle-switch input:checked + .gcs-toggle-slider {
+    background-color: var(--indoor-accent);
+    border-color: var(--indoor-accent);
+  }
+  .theme-light .gcs-toggle-switch input:checked + .gcs-toggle-slider {
+    background-color: var(--outdoor-accent);
+    border-color: var(--outdoor-accent);
+  }
+  .gcs-toggle-switch input:checked + .gcs-toggle-slider:before {
+    transform: translateX(18px);
+    background-color: #0A1420;
+  }
+  .theme-light .gcs-toggle-switch input:checked + .gcs-toggle-slider:before {
+    background-color: #FFFFFF;
+  }
+
+  /* Modal Dialog Backdrop & Card */
+  .modal-dialog-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(5, 12, 20, 0.75);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2500;
+    animation: fadeInModal 0.2s ease-out;
+  }
+  @keyframes fadeInModal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .modal-dialog-window {
+    width: 440px;
+    max-width: 90%;
+    border-radius: 10px;
+    padding: 22px 24px;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
+    animation: scaleModal 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    border: 1px solid;
+  }
+  @keyframes scaleModal {
+    from { transform: scale(0.92); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .theme-dark .modal-dialog-window {
+    background: var(--indoor-surface-panel);
+    border-color: rgba(47, 208, 232, 0.35);
+    color: var(--indoor-text-primary);
+  }
+  .theme-light .modal-dialog-window {
+    background: #FFFFFF;
+    border-color: var(--outdoor-border-subtle);
+    color: var(--outdoor-text-primary);
+  }
+
+  .modal-close-x {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    color: inherit;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+    padding: 4px;
+  }
+  .modal-close-x:hover { opacity: 1; }
+
+  .modal-badge-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+    font-size: 20px;
+  }
+  .theme-dark .modal-badge-icon {
+    background: rgba(47, 208, 232, 0.15);
+    border: 1px solid rgba(47, 208, 232, 0.35);
+    color: var(--indoor-accent);
+  }
+  .theme-light .modal-badge-icon {
+    background: rgba(0, 146, 168, 0.12);
+    border: 1px solid rgba(0, 146, 168, 0.3);
+    color: var(--outdoor-accent);
+  }
+
+  .modal-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: 0.2px;
+  }
+  .modal-desc-highlight {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    margin-bottom: 12px;
+  }
+  .theme-dark .modal-desc-highlight { color: var(--indoor-accent); }
+  .theme-light .modal-desc-highlight { color: var(--outdoor-accent); }
+
+  .modal-body-p {
+    font-size: 11.5px;
+    line-height: 1.5;
+    opacity: 0.82;
+    margin-bottom: 14px;
+  }
+
+  .modal-info-strip {
+    background: rgba(0,0,0,0.18);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 18px;
+    border: 1px solid rgba(140, 163, 184, 0.14);
+    font-size: 11px;
+    line-height: 1.45;
+  }
+  .theme-light .modal-info-strip {
+    background: #F3F6F9;
+    border-color: #DCE5EC;
+  }
+
+  .modal-actions-bar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    border-top: 1px solid rgba(140, 163, 184, 0.15);
+    padding-top: 14px;
+  }
+
+  /* Centered Modifier Option for Modal Dialog */
+  .modal-dialog-window.centered-layout {
+    text-align: center;
+  }
+  .modal-dialog-window.centered-layout .modal-badge-icon {
+    margin: 0 auto 14px auto;
+  }
+  .modal-dialog-window.centered-layout .modal-actions-bar {
+    justify-content: center;
+  }
+  .modal-dialog-window.centered-layout .modal-ref-pill {
+    text-align: left;
+  }
+
+  /* Simple, User-Friendly Status Modal Content */
+  .modal-simple-text {
+    font-size: 13px;
+    line-height: 1.5;
+    opacity: 0.9;
+    margin-bottom: 12px;
+  }
+  .modal-ref-pill {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(140, 163, 184, 0.16);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 16px;
+    font-size: 11.5px;
+    line-height: 1.5;
+  }
+  .theme-light .modal-ref-pill {
+    background: #F1F5F8;
+    border-color: #D6E0E8;
+  }
+
+  /* User-Friendly License Key Box */
+  .license-copy-card {
+    background: rgba(47, 208, 232, 0.08);
+    border: 1px dashed rgba(47, 208, 232, 0.4);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 12px 0 16px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .theme-light .license-copy-card {
+    background: #F0F9FB;
+    border-color: #00A3BE;
+  }
+  .license-key-val {
+    font-family: monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #2FD0E8;
+    user-select: all;
+  }
+  .theme-light .license-key-val {
+    color: #007D93;
+  }
+  .btn-copy-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid rgba(47, 208, 232, 0.35);
+    background: rgba(47, 208, 232, 0.16);
+    color: inherit;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn-copy-action:hover {
+    background: rgba(47, 208, 232, 0.28);
+  }
+  .btn-copy-action.copied {
+    background: #10B981 !important;
+    color: #FFFFFF !important;
+    border-color: #10B981 !important;
+  }
+
+  /* Action Buttons */
+  .btn-primary {
+    width: 100%;
+    padding: 10px;
+    border-radius: var(--radius-button);
+    font-size: 12.5px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    letter-spacing: 0.2px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.15s ease;
+  }
+  .theme-dark .btn-primary {
+    background: var(--indoor-accent);
+    color: #0A1420;
+  }
+  .theme-dark .btn-primary:hover { background: var(--indoor-accent-hover); }
+  .theme-light .btn-primary {
+    background: var(--outdoor-accent);
+    color: #FFFFFF;
+  }
+  .theme-light .btn-primary:hover { background: var(--outdoor-accent-hover); }
+
+  .btn-secondary {
+    width: 100%;
+    padding: 7px 16px;
+    height: 32px;
+    border-radius: var(--radius-button);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.2px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .theme-light .btn-secondary {
+    background: var(--outdoor-button-surface); /* Plain white #FFFFFF */
+    border-color: #B0C0CE; /* Clean slate/dark border */
+    color: var(--outdoor-text-primary); /* #14202B */
+  }
+  .theme-light .btn-secondary:hover {
+    background: var(--outdoor-window-shade-light); /* #F6F9FB */
+    border-color: #8C9EAE;
+    color: var(--outdoor-text-primary);
+  }
+  .theme-light .btn-secondary:active {
+    background: var(--outdoor-window-shade-dark); /* #DCE5EC */
+  }
+  .theme-dark .btn-secondary {
+    background: var(--indoor-button-surface); /* #16283A */
+    border-color: rgba(140, 163, 184, 0.22);
+    color: var(--indoor-text-primary); /* #EAF4FB */
+  }
+  .theme-dark .btn-secondary:hover {
+    background: var(--indoor-surface-elevated); /* #16324A */
+    border-color: rgba(140, 163, 184, 0.4);
+    color: var(--indoor-text-primary);
+  }
+  .theme-dark .btn-secondary:active {
+    background: #1C3E5E;
+  }
+
+  .text-link {
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: underline;
+    opacity: 0.85;
+    transition: opacity 0.15s;
+  }
+  .text-link:hover { opacity: 1; }
+  .theme-dark .text-link { color: var(--indoor-accent); }
+  .theme-light .text-link { color: var(--outdoor-accent); }
+
+  .session-note-text {
+    font-size: 10.5px;
+    opacity: 0.75;
+    text-align: center;
+    margin-top: 10px;
+    line-height: 1.4;
+  }
+
+  /* Status Pills */
+  .status-pill {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    letter-spacing: 0.3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pill-yellow {
+    background: var(--indoor-warn-bg);
+    color: var(--indoor-warn);
+    border: 1px solid rgba(242, 184, 75, 0.4);
+  }
+  .theme-light .pill-yellow {
+    background: var(--outdoor-warn-bg);
+    color: var(--outdoor-warn);
+    border: 1px solid rgba(151, 101, 11, 0.4);
+  }
+
+  .pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--indoor-warn);
+    box-shadow: 0 0 6px var(--indoor-warn);
+    animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse {
+    0% { transform: scale(0.9); opacity: 0.7; }
+    50% { transform: scale(1.3); opacity: 1; }
+    100% { transform: scale(0.9); opacity: 0.7; }
+  }
+
+  .receipt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+    margin-bottom: 12px;
+    background: rgba(0,0,0,0.15);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .theme-light .receipt-table { background: #FFFFFF; }
+  .receipt-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(140, 163, 184, 0.12);
+  }
+  .receipt-table tr:last-child td { border-bottom: none; }
+  .receipt-key {
+    font-weight: 500;
+    opacity: 0.75;
+    width: 36%;
+  }
+  .receipt-val {
+    font-weight: 600;
+    font-family: monospace;
+  }
+
+  /* Step Timeline */
+  .step-timeline {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin: 10px 0 14px 0;
+  }
+  .timeline-node {
+    padding: 7px 6px;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 10px;
+    border: 1px solid rgba(140, 163, 184, 0.15);
+    background: rgba(0,0,0,0.1);
+  }
+  .timeline-node.done {
+    border-color: rgba(62, 213, 152, 0.35);
+    background: rgba(62, 213, 152, 0.08);
+  }
+  .timeline-node.active {
+    border-color: rgba(242, 184, 75, 0.5);
+    background: rgba(242, 184, 75, 0.12);
+  }
+  .timeline-step-num {
+    font-weight: 700;
+    font-size: 10.5px;
+    margin-bottom: 2px;
+  }
+  .timeline-node.done .timeline-step-num { color: var(--indoor-ok); }
+  .timeline-node.active .timeline-step-num { color: var(--indoor-warn); }
+
+  /* ========================================================================= */
+  /* Dedicated External Sidebar (Separated from Screen Viewport) */
+  /* ========================================================================= */
+  .sidebar-container {
+    width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 560px;
+    flex-shrink: 0;
+  }
+
+  /* Dedicated State & Scenario Controller Panel */
+  .state-controller-panel {
+    background: #0d1a29;
+    border-radius: 10px;
+    padding: 14px 16px;
+    border: 1px solid rgba(140, 163, 184, 0.2);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  }
+  .controller-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #2FD0E8;
+    letter-spacing: 0.3px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .controller-desc {
+    font-size: 11px;
+    color: #9FB7CC;
+    margin-bottom: 10px;
+    line-height: 1.35;
+  }
+
+  /* Format Selector in Controller */
+  .format-selector-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(140, 163, 184, 0.15);
+  }
+  .format-pill-btn {
+    flex: 1;
+    padding: 5px 8px;
+    background: #16283a;
+    border: 1px solid rgba(140, 163, 184, 0.2);
+    border-radius: 4px;
+    color: #9FB7CC;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease;
+  }
+  .format-pill-btn:hover { border-color: #2FD0E8; color: #EAF4FB; }
+  .format-pill-btn.active {
+    background: #16324A;
+    border-color: #2FD0E8;
+    color: #2FD0E8;
+    font-weight: 700;
+  }
+
+  .state-btn-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .state-switch-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    background: #16283a;
+    border: 1px solid rgba(140, 163, 184, 0.2);
+    border-radius: 6px;
+    color: #EAF4FB;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s ease;
+  }
+  .state-switch-btn:hover {
+    border-color: #2FD0E8;
+    background: #193147;
+  }
+  .state-switch-btn.active {
+    background: #16324A;
+    border-color: #2FD0E8;
+    color: #2FD0E8;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(47, 208, 232, 0.2);
+  }
+  .state-badge {
+    font-size: 9.5px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .badge-gray { background: rgba(140, 163, 184, 0.2); color: #9FB7CC; }
+  .badge-red { background: rgba(240, 104, 79, 0.2); color: #F0684F; }
+  .badge-yellow { background: rgba(242, 184, 75, 0.2); color: #F2B84B; }
+  .badge-green { background: rgba(62, 213, 152, 0.2); color: #3ED598; }
+
+  /* Criteria Checklist Panel */
+  .criteria-panel {
+    background: #0d1a29;
+    border-radius: 10px;
+    padding: 14px 16px;
+    border: 1px solid rgba(140, 163, 184, 0.18);
+    font-size: 11.5px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .criteria-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #9FB7CC;
+    letter-spacing: 0.2px;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .criterion-item {
+    margin-bottom: 10px;
+    padding-left: 14px;
+    position: relative;
+    line-height: 1.35;
+    color: #9FB7CC;
+    font-size: 11px;
+  }
+  .criterion-item::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: #3ED598;
+    font-weight: 700;
+  }
+  .criterion-item.active-story {
+    color: #EAF4FB;
+  }
+  .criterion-item strong {
+    color: #EAF4FB;
+  }
+</style>
+</head>
+<body>
+
+<!-- Studio Header -->
+<div class="studio-header">
+  <div class="studio-title">
+    <span>PulseGCS Ground Station</span>
+    <span class="tag-badge">M3 Client Architecture</span>
+    <span style="font-size:12px; font-weight:400; opacity:0.7;">| Landscape Ground Station (960×560)</span>
+  </div>
+  <div style="font-size:11.5px; opacity:0.8;">
+    SKYX Aerospace • Flight Operations Console v0.3.0
+  </div>
+</div>
+
+<!-- Studio Control Navigation -->
+<div class="studio-nav">
+  <div class="nav-group">
+    <span class="nav-label">Active Screen:</span>
+    <button class="screen-pill active" id="btnUS01" onclick="loadScreen('us01_signin')">1. Sign In</button>
+    <button class="screen-pill" id="btnUS02Step1" onclick="loadScreen('us02_step1')">2. Step 1: Operator</button>
+    <button class="screen-pill" id="btnUS02Step2" onclick="loadScreen('us02_step2')">3. Step 2: Aircraft</button>
+    <button class="screen-pill" id="btnUS09FCM" onclick="loadScreen('us09_fcm')">4. FCM Notification</button>
+    <button class="screen-pill" id="btnUS03Recovery" onclick="loadScreen('us03_recovery')">5. Forgot Password</button>
+  </div>
+
+  <div class="nav-group" style="margin-left:auto;">
+    <span class="nav-label">Theme:</span>
+    <button class="tool-btn active" id="btnDark" onclick="setTheme('dark')">Indoor Dark</button>
+    <button class="tool-btn" id="btnLight" onclick="setTheme('light')">Outdoor Light</button>
+  </div>
+
+  <div class="nav-group">
+    <span class="nav-label">Viewport:</span>
+    <button class="tool-btn active" id="btnStandard" onclick="setViewport('standard')">960×560 (Default)</button>
+    <button class="tool-btn" id="btnWide" onclick="setViewport('wide')">1040×580</button>
+    <button class="tool-btn" id="btnPortrait" onclick="setViewport('portrait')">Portrait</button>
+  </div>
+</div>
+
+<!-- Main Canvas Stage & Dedicated External Sidebar -->
+<div class="stage-container">
+  
+  <!-- Interactive Ground Station Viewport (STRICTLY PRODUCTION UI ONLY) -->
+  <div class="screen-viewport theme-dark" id="viewport">
+    
+    <!-- Top Navigation Header (Matching ConnectAircraftPanel.qml) -->
+    <div class="panel-top-header" id="topHeader">
+      <div class="header-left-cluster">
+        <svg class="header-logo-icon" id="topHeaderLogo" viewBox="0 0 104 104">
+          <path d="M84.17,19.83 A45.5,45.5 0 0 1 84.17,84.17" fill="none" stroke="#EAF2F7" stroke-width="13"/>
+          <path d="M19.83,84.17 A45.5,45.5 0 0 1 19.83,19.83" fill="none" stroke="#EAF2F7" stroke-width="13"/>
+          <polygon points="52,35 69,52 52,69 35,52" fill="#00C4DE"/>
+        </svg>
+        <span class="header-panel-title" id="panelHeaderTitle">Sign In</span>
+        <span class="header-panel-sub" id="panelHeaderSub" style="display:none;"></span>
+      </div>
+
+      <div class="header-right-cluster">
+        <button class="header-demo-btn" id="headerDemoBtn" onclick="handleDemoClick()">
+          <span>Demo Mode</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Floating Pop Notification Anchor (Renders generous 600px pop banner) -->
+    <div id="floatingNotificationAnchor" class="floating-notice-anchor"></div>
+
+    <!-- Active Screen Body -->
+    <div class="panel-body" id="screenBody">
+      <!-- Screen HTML Injected via JS -->
+    </div>
+
+    <!-- Modal Dialog Popup Anchor (For full dialog view) -->
+    <div id="modalDialogAnchor"></div>
+  </div>
+
+  <!-- Dedicated External Sidebar (Separated from Screen Area) -->
+  <div class="sidebar-container">
+    
+    <!-- Dedicated State & Scenario Controller Panel -->
+    <div class="state-controller-panel">
+      <div class="controller-title">
+        <span id="controllerHeading">State Controller</span>
+        <span style="font-size:9.5px; opacity:0.7; font-weight:500;">Isolated Panel</span>
+      </div>
+      <div class="controller-desc" id="controllerDescription">
+        Select notification presentation format and simulated conditions:
+      </div>
+
+      <!-- Notification Format Selector (Popup vs In-Card vs Dialog Modal) -->
+      <div class="format-selector-row">
+        <button class="format-pill-btn active" id="btnFmtPopup" onclick="setNotificationFormat('popup')">
+          Pop-up Banner
+        </button>
+        <button class="format-pill-btn" id="btnFmtInline" onclick="setNotificationFormat('inline')">
+          In-Card Notice
+        </button>
+        <button class="format-pill-btn" id="btnFmtModal" onclick="setNotificationFormat('modal')">
+          Dialog Modal
+        </button>
+      </div>
+
+      <div class="state-btn-stack" id="stateButtonContainer">
+        <!-- Dynamic state switch buttons injected here -->
+      </div>
+    </div>
+
+    <!-- Acceptance Criteria Checklist Panel -->
+    <div class="criteria-panel">
+      <div class="criteria-title" id="criteriaHeader">Criteria Checklist</div>
+      <div id="criteriaList">
+        <!-- Dynamic criteria items -->
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  let currentTheme = 'dark';
+  let currentScreen = 'us01_signin';
+  
+  // Presentation format: 'popup' (Floating top banner), 'inline' (In-card expanded)
+  let notificationFormat = 'popup';
+
+  // Independent Simulation States
+  let us01NoticeState = 'normal';
+  let us02ReviewPhase = 'phase_audit';
+  let modalIconLayout = 'left'; // 'left' (matching Sent popup) or 'center'
+  let fcmAlertState = 'mismatch'; // 'mismatch' | 'unregistered' | 'ok'
+  let recoveryStage = 'request'; // 'request' | 'verify' | 'success'
+  let recoveryNoticeState = 'normal'; // 'normal' | 'err_email' | 'err_code' | 'err_mismatch' | 'err_network' | 'ok_sent'
+  let recoveryEmail = 'pilot@skyx.aero';
+
+  function setModalIconLayout(layout) {
+    modalIconLayout = layout;
+    if (['us02_failure', 'us02_review', 'us02_license_ready', 'us09_fcm'].includes(currentScreen)) {
+      document.getElementById('screenBody').innerHTML = screens[currentScreen]();
+      renderControllerPanel();
+    }
+  }
+
+  // Persistent Registration Form Data (preserved across steps)
+  let regFormData = {
+    fullName: 'Kailash Nathan',
+    phone: '+91 98765 43210',
+    email: 'kailash@skyx.aero',
+    pw: 'PulseSecured2026!',
+    dob: '1994-06-15',
+    model: 'SkyX Kissan',
+    serial: 'SKYX-KSN-2026-0842',
+    uin: 'UIN-IND-2026-8812',
+    bindConfirm: true
+  };
+
+  // SVG Logo Generator (Dual Arcs + Center Diamond)
+  function getLogoSVG(theme) {
+    const arcColor = (theme === 'dark') ? '#EAF2F7' : '#071A2B';
+    return `
+      <svg class="logo-svg" viewBox="0 0 104 104">
+        <path d="M84.17,19.83 A45.5,45.5 0 0 1 84.17,84.17" fill="none" stroke="${arcColor}" stroke-width="13"/>
+        <path d="M19.83,84.17 A45.5,45.5 0 0 1 19.83,19.83" fill="none" stroke="${arcColor}" stroke-width="13"/>
+        <polygon points="52,35 69,52 52,69 35,52" fill="#00C4DE"/>
+      </svg>
+    `;
+  }
+
+  // SVG Eye Icons for Password Visibility Toggle
+  function getEyeSVG() {
+    return `
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    `;
+  }
+
+  function getEyeSlashSVG() {
+    return `
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+        <line x1="1" y1="1" x2="23" y2="23"/>
+      </svg>
+    `;
+  }
+
+  // In-Card Notice Component Generator (No Truncation)
+  function renderPulseGCSNoticeBar(noticeType, message, actionText = '', actionCallback = '') {
+    let iconChar = 'ℹ';
+    if (noticeType === 'warn' || noticeType === 'warning') iconChar = '⚠';
+    else if (noticeType === 'err' || noticeType === 'error') iconChar = '⛔';
+    else if (noticeType === 'ok' || noticeType === 'success') iconChar = '✓';
+
+    const actionButton = actionText ? `
+      <button class="notice-bar-action-btn" onclick="${actionCallback}">
+        ${actionText}
+      </button>
+    ` : '';
+
+    return `
+      <div class="pulsegcs-notice-bar notice-bar-${noticeType}">
+        <span class="notice-bar-icon">${iconChar}</span>
+        <span class="notice-bar-message">${message}</span>
+        ${actionButton}
+      </div>
+    `;
+  }
+
+  // Floating Pop Banner Generator (Generous 600px width, slides smoothly from top)
+  function renderFloatingPopNotification(type, title, message, actionText = '', actionCallback = '') {
+    const anchor = document.getElementById('floatingNotificationAnchor');
+    if (!type || type === 'none') {
+      anchor.innerHTML = '';
+      return;
+    }
+
+    let iconChar = 'ℹ';
+    if (type === 'warn') iconChar = '⚠';
+    else if (type === 'err') iconChar = '⛔';
+    else if (type === 'ok') iconChar = '✓';
+
+    const actionBtn = actionText ? `
+      <button class="popup-action-btn" onclick="${actionCallback}">
+        ${actionText}
+      </button>
+    ` : '';
+
+    anchor.innerHTML = `
+      <div class="gcs-floating-popup popup-${type}">
+        <div class="popup-icon-badge">${iconChar}</div>
+        <div class="popup-content-block">
+          <div class="popup-title">${title}</div>
+          <div class="popup-message-body">${message}</div>
+        </div>
+        <div class="popup-actions-block">
+          ${actionBtn}
+          <button class="popup-close-btn" onclick="dismissPopup()" title="Dismiss notification">✕</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function dismissPopup() {
+    const anchor = document.getElementById('floatingNotificationAnchor');
+    anchor.innerHTML = '';
+  }
+
+  // Dialog Modal Notification Generator (Focused backdrop-blurred dialog)
+  function renderNotificationModal(type, title, message, actionText = '', actionCallback = '') {
+    const anchor = document.getElementById('modalDialogAnchor');
+    if (!anchor) return;
+
+    if (!type || type === 'none') {
+      anchor.innerHTML = '';
+      return;
+    }
+
+    let iconChar = 'ℹ';
+    let iconBg = 'rgba(47, 208, 232, 0.15)';
+    let iconColor = 'var(--indoor-accent)';
+    let iconBorder = 'rgba(47, 208, 232, 0.4)';
+
+    if (type === 'warn' || type === 'warning') {
+      iconChar = '⚠';
+      iconBg = 'var(--indoor-warn-bg)';
+      iconColor = 'var(--indoor-warn)';
+      iconBorder = 'rgba(242, 184, 75, 0.4)';
+    } else if (type === 'err' || type === 'error') {
+      iconChar = '⛔';
+      iconBg = 'var(--indoor-err-bg)';
+      iconColor = 'var(--indoor-err)';
+      iconBorder = 'rgba(240, 104, 79, 0.4)';
+    } else if (type === 'ok' || type === 'success') {
+      iconChar = '✓';
+      iconBg = 'var(--indoor-ok-bg)';
+      iconColor = 'var(--indoor-ok)';
+      iconBorder = 'rgba(62, 213, 152, 0.4)';
+    }
+
+    const actionBtn = actionText ? `
+      <button type="button" class="btn-primary" style="width:auto; padding:8px 22px;" onclick="${actionCallback}; dismissNotificationModal();">
+        ${actionText}
+      </button>
+    ` : `
+      <button type="button" class="btn-primary" style="width:auto; padding:8px 22px;" onclick="dismissNotificationModal()">
+        OK
+      </button>
+    `;
+
+    anchor.innerHTML = `
+      <div class="modal-dialog-backdrop" onclick="dismissNotificationModal()">
+        <div class="modal-dialog-window" onclick="event.stopPropagation()">
+          <button type="button" class="modal-close-x" onclick="dismissNotificationModal()" title="Close dialog">✕</button>
+
+          <div class="modal-badge-icon" style="background:${iconBg}; border:1px solid ${iconBorder}; color:${iconColor};">
+            ${iconChar}
+          </div>
+
+          <div class="modal-title">${title}</div>
+
+          <div class="modal-body-p" style="margin-top:8px; font-size:12.5px; opacity:0.9; line-height:1.55;">
+            ${message}
+          </div>
+
+          <div class="modal-actions-bar" style="margin-top:20px;">
+            <button type="button" class="btn-secondary" style="width:auto; padding:8px 18px;" onclick="dismissNotificationModal()">
+              Close
+            </button>
+            ${actionBtn}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function dismissNotificationModal() {
+    const anchor = document.getElementById('modalDialogAnchor');
+    if (anchor) anchor.innerHTML = '';
+  }
+
+  // Acceptance Criteria Specs
+  const criteriaData = {
+    us01_signin: {
+      title: "M3-US01: Branded Login & Navigation",
+      items: [
+        "<strong>Approved PulseGCS UI</strong>: Vector dual-arc mark and PulseGCSTokens.qml theme integration.",
+        "<strong>Sign In</strong>: Operator email and password inputs with reveal toggle.",
+        "<strong>Registration Path</strong>: Direct routing to Step 1 operator enrollment.",
+        "<strong>Application Status Popup</strong>: When returning with a submitted application, shows a simple status popup with Close button over Sign In.",
+        "<strong>Demo Access</strong>: Permanent Demo Mode header action available immediately after dismissing status popup without aircraft arming.",
+        "<strong>Forgot Password</strong>: Standard credential recovery flow access (US03).",
+        "<strong>7-Day Session Persistence</strong>: Offline authorization without redundant checkbox.",
+        "<strong>Zero Text Truncation</strong>: Flexible popup banner and spacious notice system.",
+        "<strong>Safety Invariant</strong>: Ground station sign-in does not arm aircraft or initialize motors."
+      ]
+    },
+    us02_step1: {
+      title: "M3-US02: Step 1 — Operator Information",
+      items: [
+        "<strong>Single-Screen Focus</strong>: Dedicated step 1 card cleanly centered in tablet landscape.",
+        "<strong>Step Indicator</strong>: Visual 2-step progress tracking (Step 1 of 2 active).",
+        "<strong>Full Name</strong> (Required): Validated operator legal identity.",
+        "<strong>Phone Number</strong> (Required): Contact identity with telephone input.",
+        "<strong>Email Address</strong> (Required): Account ownership and verification target.",
+        "<strong>Password</strong> (Required): Security credentials with SVG eye visibility toggle.",
+        "<strong>Date of Birth (DOB)</strong> (Required): Operator date of birth.",
+        "<strong>Input Validation</strong>: Immediate inline feedback and non-truncated error banner on Next.",
+        "<strong>Next Navigation</strong>: Proceeds to Step 2 (Aircraft & Console) once validated."
+      ]
+    },
+    us02_step2: {
+      title: "M3-US02: Step 2 — Aircraft & Console",
+      items: [
+        "<strong>Single-Screen Focus</strong>: Dedicated step 2 card with step 1 preserved.",
+        "<strong>Step Indicator</strong>: Visual 2-step progress tracking (Step 1 completed, Step 2 active).",
+        "<strong>Drone Model Dropdown</strong> (Required): Authorized SKYX fleet selection.",
+        "<strong>Visible Drone Serial</strong> (Required): Physical chassis plate identification.",
+        "<strong>UIN</strong> (Optional): Optional DigitalSky / national registration.",
+        "<strong>Console Hardware Enrollment</strong>: Android Keystore attestation binding with help icon.",
+        "<strong>Back Navigation</strong>: Return to Step 1 preserving entered information.",
+        "<strong>Submission Flow</strong>: Displays simple 'Application Sent to SkyX Backend' popup and routes directly to Sign In without separate review status panel."
+      ]
+    },
+    us02_failure: {
+      title: "M3-US02: Application Sent Failure",
+      items: [
+        "<strong>Transmission Error Notice</strong>: High-contrast alert badge and simple explanation of network failure.",
+        "<strong>Preserved Input State</strong>: Operator credentials and aircraft selection kept intact.",
+        "<strong>Immediate Retry Action</strong>: Primary button to retry transmitting application data.",
+        "<strong>Edit Option</strong>: Secondary button to return to Step 2 and adjust details if needed."
+      ]
+    },
+    us02_review: {
+      title: "M3-US02: Application Under Review",
+      items: [
+        "<strong>1–2 Business Days Window</strong>: Clear review turnaround expectation without technical jargon.",
+        "<strong>Application Reference</strong>: Assigned reference (#SKYX-REG-2026-9041) for tracking.",
+        "<strong>Fleet Record Summary</strong>: Linked drone model and serial number.",
+        "<strong>Unrestricted Demo Access</strong>: Permanent Demo Mode access from header or action buttons."
+      ]
+    },
+    us02_license_ready: {
+      title: "M3-US02 / US07: License Key Generated",
+      items: [
+        "<strong>Access Approval</strong>: Confirmation that engineering team has verified hardware and created access.",
+        "<strong>Issued License Key</strong>: Formatted key (SKYX-LIC-8820-4190-FA21) displayed in high contrast.",
+        "<strong>1-Click Copy Key</strong>: Interactive clipboard copy button with '✓ Copied!' visual confirmation.",
+        "<strong>Save Prompt</strong>: Clear friendly instruction to copy and save the key for future records.",
+        "<strong>Direct Sign-In Flow</strong>: Primary button to proceed directly to Sign In."
+      ]
+    },
+    us09_fcm: {
+      title: "M3-US09: FCM Telemetry Verification Failure Notification",
+      items: [
+        "<strong>Isolated Notification UI</strong>: Dedicated active screen displaying the verification failure notification alone without surrounding form clutter.",
+        "<strong>Hardware Silicon Extraction</strong>: Captures Flight Control Module (FCM) UID from MAVLink AUTOPILOT_VERSION message (Vehicle UID).",
+        "<strong>Backend Airframe Cross-Check</strong>: Matches extracted FCM UID against registered drone serial in the SkyX backend.",
+        "<strong>Immediate Connection Abort</strong>: Telemetry connection process halts immediately upon UID mismatch to prevent unauthorized vehicle control.",
+        "<strong>Fail-Safe Return</strong>: Switches back to Connect Aircraft screen with informative notification.",
+        "<strong>Format Flexibility</strong>: Renders as floating top pop-up banner, in-card notice bar, or simplified dialog modal based on operator preference.",
+        "<strong>Retry Mechanism</strong>: Primary action to re-initiate telemetry connection and boot handshake."
+      ]
+    },
+    us03_recovery: {
+      title: "M3-US03: Password Recovery & Reset",
+      items: [
+        "<strong>Operator Email Verification</strong>: Validates registered email address with instant syntax and existence checking.",
+        "<strong>Connect Aircraft Style NoticeBar</strong>: Integrated in-flow alerts for invalid account, timeout, and verification code dispatched states.",
+        "<strong>Cryptographic Verification Code</strong>: 6-digit verification code input with clean monospace tracking.",
+        "<strong>Password Policy & Security</strong>: Minimum 8 characters, confirmation matching check, and SVG eye reveal toggles.",
+        "<strong>Immediate Return Path</strong>: Seamless single-click '‹ Back to Sign In' navigation available at all stages.",
+        "<strong>Completion Flow</strong>: Direct transition to Sign In screen upon successful password update with credentials ready."
+      ]
+    }
+  };
+
+  // Helper to save current form inputs into regFormData
+  function saveCurrentInputs() {
+    const fn = document.getElementById('regFullName');
+    const ph = document.getElementById('regPhone');
+    const em = document.getElementById('regEmail');
+    const pw = document.getElementById('regPw');
+    const dob = document.getElementById('regDOB');
+    if (fn) regFormData.fullName = fn.value;
+    if (ph) regFormData.phone = ph.value;
+    if (em) regFormData.email = em.value;
+    if (pw) regFormData.pw = pw.value;
+    if (dob) regFormData.dob = dob.value;
+
+    const dm = document.getElementById('regDroneModel');
+    const ds = document.getElementById('regDroneSerial');
+    const uin = document.getElementById('regUIN');
+    const bc = document.getElementById('bindConfirm');
+    if (dm) regFormData.model = dm.value;
+    if (ds) regFormData.serial = ds.value;
+    if (uin) regFormData.uin = uin.value;
+    if (bc) regFormData.bindConfirm = bc.checked;
+  }
+
+  // Step 1 Validation & Proceed
+  function validateAndGoToStep2() {
+    saveCurrentInputs();
+
+    let invalidFields = [];
+    if (!regFormData.fullName.trim()) invalidFields.push({ id: 'regFullName', msg: 'Full name is required' });
+    if (!regFormData.phone.trim()) invalidFields.push({ id: 'regPhone', msg: 'Phone number is required' });
+    if (!regFormData.email.trim() || !regFormData.email.includes('@')) invalidFields.push({ id: 'regEmail', msg: 'Valid email address is required' });
+    if (!regFormData.pw || regFormData.pw.length < 8) invalidFields.push({ id: 'regPw', msg: 'Password must be at least 8 characters' });
+    if (!regFormData.dob) invalidFields.push({ id: 'regDOB', msg: 'Date of birth is required' });
+
+    // Reset visual error states
+    ['regFullName', 'regPhone', 'regEmail', 'regPw', 'regDOB'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('input-invalid');
+    });
+
+    if (invalidFields.length > 0) {
+      // Highlight first error field
+      const first = invalidFields[0];
+      const el = document.getElementById(first.id);
+      if (el) {
+        el.classList.add('input-invalid');
+        el.focus();
+      }
+
+      const summary = (invalidFields.length === 1) 
+        ? first.msg 
+        : `${first.msg} (and ${invalidFields.length - 1} other field incomplete)`;
+
+      if (notificationFormat === 'popup') {
+        renderFloatingPopNotification('err', 'Operator Information Required', summary);
+      } else if (notificationFormat === 'modal') {
+        renderNotificationModal('err', 'Operator Information Required', summary, 'Review Form', 'dismissNotificationModal()');
+      } else {
+        const noticeEl = document.getElementById('step1InlineNotice');
+        if (noticeEl) {
+          noticeEl.innerHTML = renderPulseGCSNoticeBar('err', summary);
+        }
+      }
+      return;
+    }
+
+    // Success: advance to Step 2
+    dismissPopup();
+    dismissNotificationModal();
+    loadScreen('us02_step2');
+  }
+
+  // Step 2 Validation & Submit
+  function validateAndSubmitRegistration() {
+    saveCurrentInputs();
+
+    const ds = document.getElementById('regDroneSerial');
+    const card = document.getElementById('consoleBindingCard');
+
+    if (ds) ds.classList.remove('input-invalid');
+    if (card) card.classList.remove('input-invalid');
+
+    if (!regFormData.serial.trim()) {
+      if (ds) {
+        ds.classList.add('input-invalid');
+        ds.focus();
+      }
+      const msg = 'Visible drone serial number is required to link physical hardware.';
+      if (notificationFormat === 'popup') {
+        renderFloatingPopNotification('err', 'Airframe Serial Required', msg);
+      } else if (notificationFormat === 'modal') {
+        renderNotificationModal('err', 'Airframe Serial Required', msg, 'Enter Serial', 'dismissNotificationModal()');
+      } else {
+        const noticeEl = document.getElementById('step2InlineNotice');
+        if (noticeEl) noticeEl.innerHTML = renderPulseGCSNoticeBar('err', msg);
+      }
+      return;
+    }
+
+    if (!regFormData.bindConfirm) {
+      if (card) card.classList.add('input-invalid');
+      const msg = 'Please enable console hardware binding to link this tablet to your aircraft license.';
+      if (notificationFormat === 'popup') {
+        renderFloatingPopNotification('warn', 'Console Attestation Required', msg);
+      } else if (notificationFormat === 'modal') {
+        renderNotificationModal('warn', 'Console Attestation Required', msg, 'Enable Binding', 'dismissNotificationModal()');
+      } else {
+        const noticeEl = document.getElementById('step2InlineNotice');
+        if (noticeEl) noticeEl.innerHTML = renderPulseGCSNoticeBar('warn', msg);
+      }
+      return;
+    }
+
+    // Success: show clean "Application Sent to SkyX Backend" popup
+    dismissPopup();
+    dismissNotificationModal();
+    showApplicationSentPopup();
+  }
+
+  // 1. Post-Submission Popup (First time registration)
+  function showApplicationSentPopup() {
+    const anchor = document.getElementById('modalDialogAnchor');
+    if (!anchor) return;
+
+    anchor.innerHTML = `
+      <div class="modal-dialog-backdrop" onclick="closeStatusPopupAndGoSignIn()">
+        <div class="modal-dialog-window" onclick="event.stopPropagation()">
+          <button type="button" class="modal-close-x" onclick="closeStatusPopupAndGoSignIn()" title="Close">✕</button>
+
+          <div class="modal-badge-icon" style="background:rgba(47, 208, 232, 0.15); border:1px solid rgba(47, 208, 232, 0.35); color:#2FD0E8;">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 2L11 13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </div>
+
+          <div class="modal-title">Application Sent to SkyX Backend</div>
+
+          <div class="modal-simple-text" style="color:var(--indoor-accent); font-weight:600; margin-bottom:8px;">
+            Your application has been received and is under review (1–2 business days).
+          </div>
+
+          <div class="modal-simple-text" style="opacity:0.85; font-size:12px; margin-bottom:18px;">
+            Application Reference: <strong style="color:#2FD0E8; font-family:monospace;">#SKYX-REG-2026-9041</strong>
+          </div>
+
+          <div class="modal-actions-bar">
+            <button type="button" class="btn-primary" style="width:auto; padding:8px 24px;" onclick="closeStatusPopupAndGoSignIn()">
+              Go to Sign In
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function closeStatusPopupAndGoSignIn() {
+    dismissStatusPopup();
+    loadScreen('us01_signin');
+  }
+
+  // 2. Next App Launch Status Popup over Sign In Page
+  function showAppLaunchStatusPopup(status = 'pending') {
+    const anchor = document.getElementById('modalDialogAnchor');
+    if (!anchor) return;
+
+    if (status === 'approved') {
+      anchor.innerHTML = `
+        <div class="modal-dialog-backdrop" onclick="dismissStatusPopup()">
+          <div class="modal-dialog-window ${modalIconLayout === 'center' ? 'centered-layout' : ''}" onclick="event.stopPropagation()">
+            <button type="button" class="modal-close-x" onclick="dismissStatusPopup()" title="Close">✕</button>
+
+            <div class="modal-badge-icon" style="background:rgba(16, 185, 129, 0.15); border:1px solid rgba(16, 185, 129, 0.35); color:#10B981;">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+              </svg>
+            </div>
+
+            <div class="modal-title">License Key Generated</div>
+
+            <div class="modal-simple-text" style="color:#10B981; font-weight:600; margin-bottom:6px;">
+              Application approved! Your console flight license is ready.
+            </div>
+
+            <div class="modal-simple-text" style="opacity:0.85; font-size:12px; margin-bottom:12px;">
+              Please copy and paste this license key for future reference.
+            </div>
+
+            <div class="license-copy-card">
+              <div>
+                <div style="font-size:10px; opacity:0.7; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Issued License Key</div>
+                <div class="license-key-val" id="licenseKeyValue">SKYX-LIC-8820-4190-FA21</div>
+              </div>
+              <button type="button" class="btn-copy-action" id="copyKeyBtn" onclick="copyLicenseKey(this)">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span>Copy Key</span>
+              </button>
+            </div>
+
+            <div class="modal-ref-pill">
+              <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <span style="opacity:0.75;">License ID:</span>
+                <strong style="font-family:monospace; color:#2FD0E8;">SKYX-LIC-8820-4190-FA21</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <span style="opacity:0.75;">Drone Model:</span>
+                <span style="font-weight:600;">${regFormData.model || 'SkyX Kissan'}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between;">
+                <span style="opacity:0.75;">Serial Number:</span>
+                <span style="font-weight:600;">${regFormData.serial || 'SKYX-KSN-2026-0842'}</span>
+              </div>
+            </div>
+
+            <div class="modal-actions-bar">
+              <button type="button" class="btn-secondary" style="width:auto; padding:8px 16px;" onclick="handleDemoClick()">
+                Explore in Demo Mode
+              </button>
+              <button type="button" class="btn-primary" style="width:auto; padding:8px 22px;" onclick="dismissStatusPopup()">
+                Proceed to Sign In ›
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (status === 'failed') {
+      anchor.innerHTML = `
+        <div class="modal-dialog-backdrop" onclick="dismissStatusPopup()">
+          <div class="modal-dialog-window ${modalIconLayout === 'center' ? 'centered-layout' : ''}" onclick="event.stopPropagation()">
+            <button type="button" class="modal-close-x" onclick="dismissStatusPopup()" title="Close">✕</button>
+
+            <div class="modal-badge-icon" style="background:rgba(239, 68, 68, 0.15); border:1px solid rgba(239, 68, 68, 0.35); color:#EF4444;">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+
+            <div class="modal-title">Application Sent Failure</div>
+
+            <div class="modal-simple-text" style="color:#EF4444; font-weight:600; margin-bottom:8px;">
+              Application was submitted, but could not reach the SkyX backend.
+            </div>
+
+            <div class="modal-simple-text" style="opacity:0.85; font-size:12px; line-height:1.55; margin-bottom:18px;">
+              Please check your internet connection and try submitting again. Your operator and aircraft details have been preserved.
+            </div>
+
+            <div class="modal-actions-bar">
+              <button type="button" class="btn-secondary" style="width:auto; padding:8px 18px;" onclick="dismissStatusPopup()">
+                Close
+              </button>
+              <button type="button" class="btn-primary" style="width:auto; padding:8px 22px;" onclick="dismissStatusPopup(); loadScreen('us02_step2');">
+                Retry Submission
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      // Default: 'pending' (Under Review)
+      anchor.innerHTML = `
+        <div class="modal-dialog-backdrop" onclick="dismissStatusPopup()">
+          <div class="modal-dialog-window ${modalIconLayout === 'center' ? 'centered-layout' : ''}" onclick="event.stopPropagation()">
+            <button type="button" class="modal-close-x" onclick="dismissStatusPopup()" title="Close">✕</button>
+
+            <div class="modal-badge-icon" style="background:rgba(245, 158, 11, 0.15); border:1px solid rgba(245, 158, 11, 0.35); color:#F59E0B;">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
+
+            <div class="modal-title">Application Under Review</div>
+
+            <div class="modal-simple-text" style="color:var(--indoor-accent); font-weight:600; margin-bottom:8px;">
+              Your application is under review by the SkyX team (1–2 business days).
+            </div>
+
+            <div class="modal-simple-text" style="opacity:0.85; font-size:12px; line-height:1.55; margin-bottom:18px;">
+              We are verifying hardware records and generating your console license key.<br>
+              Application Reference: <strong style="color:#2FD0E8; font-family:monospace;">#SKYX-REG-2026-9041</strong>
+            </div>
+
+            <div class="modal-actions-bar">
+              <button type="button" class="btn-secondary" style="width:auto; padding:8px 16px;" onclick="dismissStatusPopup()">
+                Close
+              </button>
+              <button type="button" class="btn-secondary" style="width:auto; padding:8px 16px;" onclick="handleDemoClick()">
+                Explore in Demo Mode
+              </button>
+              <button type="button" class="btn-primary" style="width:auto; padding:8px 20px;" onclick="showAppLaunchStatusPopup('approved')">
+                Check Status
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  function dismissStatusPopup() {
+    const anchor = document.getElementById('modalDialogAnchor');
+    if (anchor) anchor.innerHTML = '';
+  }
+
+  function copyLicenseKey(btn) {
+    const keyVal = document.getElementById('licenseKeyValue')?.innerText || 'SKYX-LIC-8820-4190-FA21';
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(keyVal).catch(() => {});
+    }
+    if (btn) {
+      btn.classList.add('copied');
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        <span>Copied!</span>
+      `;
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          <span>Copy Key</span>
+        `;
+      }, 2000);
+    }
+  }
+
+  // Compatibility aliases
+  function showRegistrationStatusModal(stage) {
+    if (stage === 'sent') {
+      showApplicationSentPopup();
+    } else {
+      showAppLaunchStatusPopup(stage === 'access_granted' ? 'approved' : (stage === 'error_unreceived' ? 'failed' : 'pending'));
+    }
+  }
+  function showDeviceAuthPendingModal() {
+    showApplicationSentPopup();
+  }
+  function closeRegistrationStatusModal() {
+    dismissStatusPopup();
+  }
+  function closeModalAndGoStatus() {
+    closeStatusPopupAndGoSignIn();
+  }
+
+  let showBindingHelp = false;
+
+  function toggleBindingHelp() {
+    showBindingHelp = !showBindingHelp;
+    const box = document.getElementById('bindingHelpBox');
+    if (box) {
+      box.style.display = showBindingHelp ? 'block' : 'none';
+    }
+  }
+
+  function handleConsoleToggle(checkbox) {
+    regFormData.bindConfirm = checkbox.checked;
+    const card = document.getElementById('consoleBindingCard');
+    if (card) {
+      card.classList.toggle('bound', checkbox.checked);
+      card.classList.remove('input-invalid');
+    }
+  }
+
+  // Screen Templates
+  const screens = {
+    // -------------------------------------------------------------
+    // 1. M3-US01: Operator Sign In Screen
+    // -------------------------------------------------------------
+    us01_signin: () => `
+      <div class="gcs-card signin-card">
+        <div class="brand-lockup">
+          ${getLogoSVG(currentTheme)}
+          <div class="app-name">Sign In</div>
+        </div>
+
+        <!-- In-Card Notice Area (Only populated if user chooses In-Card format) -->
+        ${(notificationFormat === 'inline') ? renderSigninNoticeBar() : ''}
+
+        <div class="form-group">
+          <div class="form-label-row">
+            <span>Email address</span>
+          </div>
+          <input type="email" class="gcs-input" id="signinEmail" value="" placeholder="Enter your email">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label-row">
+            <span>Password</span>
+            <a class="text-link" onclick="loadScreen('us03_recovery')">Forgot password?</a>
+          </div>
+          <div class="gcs-input-box">
+            <input type="password" class="gcs-input" id="signinPw" value="" placeholder="Enter your password">
+            <button type="button" class="pw-toggle-btn" onclick="togglePw('signinPw', this)" title="Show or hide password">
+              ${getEyeSVG()}
+            </button>
+          </div>
+        </div>
+
+        <!-- Action Buttons: Demo Mode & Sign In Side by Side -->
+        <div style="display:flex; gap:12px; margin-top:16px;">
+          <button type="button" class="btn-secondary" id="btnSigninDemo" style="flex:1; height:36px; font-weight:700;" onclick="handleDemoClick()">
+            Demo Mode
+          </button>
+          <button type="button" class="btn-primary" id="btnSubmitSignin" style="flex:1; height:36px; font-weight:700;" onclick="simulateSignin()">
+            Sign In
+          </button>
+        </div>
+
+        <!-- Session Policy Note -->
+        <div class="session-note-text">
+          Session remains valid offline for up to 7 days on this registered console.
+        </div>
+
+        <!-- Route to US02 Registration -->
+        <div style="margin-top: 14px; font-size: 11.5px; text-align: center;">
+          <span style="opacity: 0.7;">New to PulseGCS?</span>
+          <a class="text-link" style="font-weight:600; margin-left:4px;" onclick="loadScreen('us02_step1')">Create an account</a>
+        </div>
+      </div>
+    `,
+
+    // -------------------------------------------------------------
+    // 2. M3-US02 Step 1: Operator Information Screen
+    // -------------------------------------------------------------
+    us02_step1: () => `
+      <div class="gcs-card step1-card">
+        <div class="brand-lockup">
+          ${getLogoSVG(currentTheme)}
+          <div class="app-name">Registration</div>
+        </div>
+        
+        <!-- Step Wizard Progress Bar -->
+        <div class="step-progress-bar">
+          <div class="step-item active">
+            <div class="step-number-circle">1</div>
+            <span>Operator Information</span>
+          </div>
+          <div class="step-connector-line"></div>
+          <div class="step-item" onclick="validateAndGoToStep2()">
+            <div class="step-number-circle">2</div>
+            <span>Aircraft & Console</span>
+          </div>
+        </div>
+
+        <!-- Header Lockup -->
+        <div style="margin-bottom:14px;">
+          <div style="font-size:15px; font-weight:700;">Operator Details</div>
+        </div>
+
+        <!-- Inline Notice Anchor for Step 1 -->
+        <div id="step1InlineNotice"></div>
+
+        <form id="step1Form" onsubmit="event.preventDefault(); validateAndGoToStep2();">
+          
+          <!-- Full Name -->
+          <div class="form-group">
+            <div class="form-label-row">
+              <span>Full name <span class="required-badge">*</span></span>
+            </div>
+            <input type="text" class="gcs-input" id="regFullName" required value="${regFormData.fullName}" placeholder="Enter full legal name">
+          </div>
+
+          <!-- Phone Number -->
+          <div class="form-group">
+            <div class="form-label-row">
+              <span>Phone number <span class="required-badge">*</span></span>
+            </div>
+            <input type="tel" class="gcs-input" id="regPhone" required value="${regFormData.phone}" placeholder="+91 00000 00000">
+          </div>
+
+          <!-- Email Address -->
+          <div class="form-group">
+            <div class="form-label-row">
+              <span>Email address <span class="required-badge">*</span></span>
+            </div>
+            <input type="email" class="gcs-input" id="regEmail" required value="${regFormData.email}" placeholder="name@domain.com">
+          </div>
+
+          <!-- Password with Eye Toggle -->
+          <div class="form-group">
+            <div class="form-label-row">
+              <span>Account password <span class="required-badge">*</span></span>
+            </div>
+            <div class="gcs-input-box">
+              <input type="password" class="gcs-input" id="regPw" required value="${regFormData.pw}">
+              <button type="button" class="pw-toggle-btn" onclick="togglePw('regPw', this)" title="Show or hide password">
+                ${getEyeSVG()}
+              </button>
+            </div>
+            <div class="input-helper">Minimum 8 characters with numbers and symbols.</div>
+          </div>
+
+          <!-- DOB -->
+          <div class="form-group">
+            <div class="form-label-row">
+              <span>Date of birth <span class="required-badge">*</span></span>
+            </div>
+            <input type="date" class="gcs-input" id="regDOB" required value="${regFormData.dob}">
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; border-top:1px solid rgba(140, 163, 184, 0.18); padding-top:12px;">
+            <button type="button" class="btn-secondary" style="width:auto; padding:8px 18px;" onclick="loadScreen('us01_signin')">Sign In</button>
+            <button type="submit" class="btn-primary" style="width:auto; padding:8px 26px;">Next</button>
+          </div>
+
+        </form>
+      </div>
+    `,
+
+    // -------------------------------------------------------------
+    // 3. M3-US02 Step 2: Aircraft Hardware & Console Screen
+    // -------------------------------------------------------------
+    us02_step2: () => `
+      <div class="gcs-card step2-card">
+        <div class="brand-lockup">
+          ${getLogoSVG(currentTheme)}
+          <div class="app-name">Registration</div>
+        </div>
+        
+        <!-- Step Wizard Progress Bar -->
+        <div class="step-progress-bar">
+          <div class="step-item completed" onclick="loadScreen('us02_step1')">
+            <div class="step-number-circle">✓</div>
+            <span>Operator Information</span>
+          </div>
+          <div class="step-connector-line completed"></div>
+          <div class="step-item active">
+            <div class="step-number-circle">2</div>
+            <span>Aircraft & Console</span>
+          </div>
+        </div>
+
+        <!-- Header Lockup -->
+        <div style="margin-bottom:14px;">
+          <div style="font-size:15px; font-weight:700;">Aircraft & Console Binding</div>
+        </div>
+
+        <!-- Inline Notice Anchor for Step 2 -->
+        <div id="step2InlineNotice"></div>
+
+        <form id="step2Form" onsubmit="event.preventDefault(); validateAndSubmitRegistration();">
+          
+          <!-- Drone Model -->
+          <div class="form-group">
+            <div class="form-label-row">
+              <span>Drone model <span class="required-badge">*</span></span>
+            </div>
+            <select class="gcs-select" id="regDroneModel">
+              <option value="SkyX Kissan" ${regFormData.model === 'SkyX Kissan' ? 'selected' : ''}>SkyX Kissan</option>
+              <option value="SkyX Carter" ${regFormData.model === 'SkyX Carter' ? 'selected' : ''}>SkyX Carter</option>
+              <option value="SkyX Cargo" ${regFormData.model === 'SkyX Cargo' ? 'selected' : ''}>SkyX Cargo</option>
+              <option value="SkyX Tether" ${regFormData.model === 'SkyX Tether' ? 'selected' : ''}>SkyX Tether</option>
+            </select>
+          </div>
+
+          <!-- Visible Drone Serial -->
+          <div class="form-group">
+            <div class="form-label-row">
+              <span>Visible drone serial number <span class="required-badge">*</span></span>
+            </div>
+            <input type="text" class="gcs-input" id="regDroneSerial" required value="${regFormData.serial}" placeholder="e.g. SKYX-KSN-XXXX-XXXX">
+            <div class="input-helper">Found on physical aircraft chassis plate or frame barcode label.</div>
+          </div>
+
+          <!-- Civil Aviation UIN (Optional) -->
+          <div class="form-group">
+            <div class="form-label-row">
+              <span>Civil aviation UIN <span class="optional-badge">(Optional)</span></span>
+            </div>
+            <input type="text" class="gcs-input" id="regUIN" value="${regFormData.uin}" placeholder="e.g. UIN-IND-XXXX-XXXX (Optional)">
+            <div class="input-helper">DigitalSky or national civil aviation registration number (if issued).</div>
+          </div>
+
+          <!-- Simple Console Binding Card -->
+          <div class="console-binding-card ${regFormData.bindConfirm ? 'bound' : ''}" id="consoleBindingCard">
+            <div class="binding-simple-row">
+              <div class="binding-label-group">
+                <span class="binding-main-label">Bind license to this console</span>
+                <button type="button" class="help-circle-btn" onclick="toggleBindingHelp()" title="What is console binding?">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                </button>
+              </div>
+
+              <label class="gcs-toggle-switch" title="Toggle console binding">
+                <input type="checkbox" id="bindConfirm" ${regFormData.bindConfirm ? 'checked' : ''} onchange="handleConsoleToggle(this)">
+                <span class="gcs-toggle-slider"></span>
+              </label>
+            </div>
+
+            <!-- Help Explanation Box -->
+            <div class="binding-help-box" id="bindingHelpBox" style="display: ${showBindingHelp ? 'block' : 'none'};">
+              <div class="help-box-header">
+                <strong>Why bind to this console?</strong>
+                <button type="button" class="help-box-close" onclick="toggleBindingHelp()" title="Dismiss help">✕</button>
+              </div>
+              <div class="help-box-text">
+                PulseGCS binds each active flight license to a single operating console to ensure operational security and regulatory compliance. Device identity details are collected automatically in the background and verified by SKYX Engineering during approval.
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; border-top:1px solid rgba(140, 163, 184, 0.18); padding-top:12px;">
+            <button type="button" class="btn-secondary" style="width:auto; padding:8px 18px;" onclick="loadScreen('us02_step1')">‹ Back</button>
+            <button type="submit" class="btn-primary" style="width:auto; padding:8px 26px;">Submit</button>
+          </div>
+
+        </form>
+      </div>
+    `,
+
+    // -------------------------------------------------------------
+    // 4. M3-US02: Application Sent Failure Screen (Simplified Dialog Modal)
+    // -------------------------------------------------------------
+    us02_failure: () => `
+      <div class="modal-dialog-window ${modalIconLayout === 'center' ? 'centered-layout' : ''}" style="margin: auto 0; position: relative;">
+        <button type="button" class="modal-close-x" onclick="loadScreen('us01_signin')" title="Close">✕</button>
+
+        <div class="modal-badge-icon" style="background:rgba(239, 68, 68, 0.15); border:1px solid rgba(239, 68, 68, 0.35); color:#EF4444;">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+
+        <div class="modal-title">Application Sent Failure</div>
+        
+        <div class="modal-simple-text" style="color:#EF4444; font-weight:600; margin-bottom:8px;">
+          Application was submitted, but could not reach the SkyX backend.
+        </div>
+
+        <div class="modal-simple-text" style="opacity:0.85; font-size:12px; line-height:1.55; margin-bottom:18px;">
+          Please check your internet connection and try submitting again. Your operator and aircraft details have been preserved.
+        </div>
+
+        <div class="modal-actions-bar">
+          <button type="button" class="btn-secondary" style="width:auto; padding:8px 18px;" onclick="loadScreen('us02_step2')">
+            ‹ Edit Application
+          </button>
+          <button type="button" class="btn-primary" style="width:auto; padding:8px 22px;" onclick="retrySubmissionFromFailureScreen(this)">
+            Retry Submission
+          </button>
+        </div>
+      </div>
+    `,
+
+    // -------------------------------------------------------------
+    // 5. M3-US02: Application Under Review Screen (Simplified Dialog Modal)
+    // -------------------------------------------------------------
+    us02_review: () => `
+      <div class="modal-dialog-window ${modalIconLayout === 'center' ? 'centered-layout' : ''}" style="margin: auto 0; position: relative;">
+        <button type="button" class="modal-close-x" onclick="loadScreen('us01_signin')" title="Close">✕</button>
+
+        <div class="modal-badge-icon" style="background:rgba(245, 158, 11, 0.15); border:1px solid rgba(245, 158, 11, 0.35); color:#F59E0B;">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
+
+        <div class="modal-title">Application Under Review</div>
+        
+        <div class="modal-simple-text" style="color:var(--indoor-accent); font-weight:600; margin-bottom:8px;">
+          Your application is under review by the SkyX team (1–2 business days).
+        </div>
+
+        <div class="modal-simple-text" style="opacity:0.85; font-size:12px; line-height:1.55; margin-bottom:18px;">
+          We are verifying hardware records and generating your console license key.<br>
+          Application Reference: <strong style="color:#2FD0E8; font-family:monospace;">#SKYX-REG-2026-9041</strong>
+        </div>
+
+        <div class="modal-actions-bar">
+          <button type="button" class="btn-secondary" style="width:auto; padding:8px 16px;" onclick="loadScreen('us01_signin')">
+            Return to Sign In
+          </button>
+          <button type="button" class="btn-secondary" style="width:auto; padding:8px 16px;" onclick="handleDemoClick()">
+            Explore in Demo Mode
+          </button>
+          <button type="button" class="btn-primary" style="width:auto; padding:8px 20px;" onclick="simulateReviewApproved()">
+            Check Status
+          </button>
+        </div>
+      </div>
+    `,
+
+    // -------------------------------------------------------------
+    // 6. M3-US02 / US07: License Key Generated Screen (Simplified Dialog Modal)
+    // -------------------------------------------------------------
+    us02_license_ready: () => `
+      <div class="modal-dialog-window ${modalIconLayout === 'center' ? 'centered-layout' : ''}" style="margin: auto 0; position: relative;">
+        <button type="button" class="modal-close-x" onclick="loadScreen('us01_signin')" title="Close">✕</button>
+
+        <div class="modal-badge-icon" style="background:rgba(16, 185, 129, 0.15); border:1px solid rgba(16, 185, 129, 0.35); color:#10B981;">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+          </svg>
+        </div>
+
+        <div class="modal-title">License Key Generated</div>
+        
+        <div class="modal-simple-text" style="color:#10B981; font-weight:600; margin-bottom:6px;">
+          Application approved! Your console flight license is ready.
+        </div>
+
+        <div class="modal-simple-text" style="opacity:0.85; font-size:12px; margin-bottom:12px;">
+          Please copy and paste this license key for future reference.
+        </div>
+
+        <div class="license-copy-card">
+          <div>
+            <div style="font-size:10px; opacity:0.7; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Issued License Key</div>
+            <div class="license-key-val" id="screenLicenseKey">SKYX-LIC-8820-4190-FA21</div>
+          </div>
+          <button type="button" class="btn-copy-action" onclick="copyScreenLicenseKey(this)">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            <span>Copy Key</span>
+          </button>
+        </div>
+
+        <div class="modal-ref-pill">
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span style="opacity:0.75;">License ID:</span>
+            <strong style="font-family:monospace; color:#2FD0E8;">SKYX-LIC-8820-4190-FA21</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span style="opacity:0.75;">Drone Model:</span>
+            <span style="font-weight:600;">${regFormData.model || 'SkyX Kissan'}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span style="opacity:0.75;">Serial Number:</span>
+            <span style="font-weight:600;">${regFormData.serial || 'SKYX-KSN-2026-0842'}</span>
+          </div>
+        </div>
+
+        <div class="modal-actions-bar">
+          <button type="button" class="btn-secondary" style="width:auto; padding:8px 16px;" onclick="handleDemoClick()">
+            Explore in Demo Mode
+          </button>
+          <button type="button" class="btn-primary" style="width:auto; padding:8px 22px;" onclick="loadScreen('us01_signin')">
+            Proceed to Sign In ›
+          </button>
+        </div>
+      </div>
+    `,
+
+    // -------------------------------------------------------------
+    // 7. M3-US09: FCM Telemetry Verification Notification Screen (Notification UI Alone)
+    // -------------------------------------------------------------
+    us09_fcm: () => {
+      const alertData = getFCMAlertData();
+      if (!alertData) return '';
+
+      if (notificationFormat === 'modal') {
+        const iconColor = alertData.type === 'err' ? '#EF4444' : (alertData.type === 'warn' ? '#F59E0B' : '#10B981');
+        const iconBg = alertData.type === 'err' ? 'rgba(239, 68, 68, 0.15)' : (alertData.type === 'warn' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)');
+        const iconBorder = alertData.type === 'err' ? 'rgba(239, 68, 68, 0.35)' : (alertData.type === 'warn' ? 'rgba(245, 158, 11, 0.35)' : 'rgba(16, 185, 129, 0.35)');
+        const iconSvg = alertData.type === 'err' ? `
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        ` : (alertData.type === 'warn' ? `
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        ` : `
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+        `);
+
+        return `
+          <div class="modal-dialog-window ${modalIconLayout === 'center' ? 'centered-layout' : ''}" style="margin: auto 0; position: relative;">
+            <button type="button" class="modal-close-x" onclick="loadScreen('us01_signin')" title="Close">✕</button>
+
+            <div class="modal-badge-icon" style="background:${iconBg}; border:1px solid ${iconBorder}; color:${iconColor};">
+              ${iconSvg}
+            </div>
+
+            <div class="modal-title">${alertData.title}</div>
+
+            <div class="modal-simple-text" style="color:${iconColor}; font-weight:600; margin-bottom:8px;">
+              ${alertData.message}
+            </div>
+
+            <div class="modal-simple-text" style="opacity:0.85; font-size:12px; line-height:1.55; margin-bottom:18px;">
+              ${alertData.type === 'err' ? 'Telemetry handshake halted. The ground station will switch back to the Connect Aircraft screen.' : (alertData.type === 'warn' ? 'Telemetry stream allowed for observation only. Vehicle control interlocks active.' : 'Flight control module authorized. Telemetry operational.')}
+            </div>
+
+            <div class="modal-actions-bar">
+              <button type="button" class="btn-secondary" style="width:auto; padding:8px 18px;" onclick="loadScreen('us01_signin')">
+                Sign In
+              </button>
+              <button type="button" class="btn-primary" style="width:auto; padding:8px 22px;" onclick="${alertData.actionCallback}">
+                ${alertData.actionText}
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      if (notificationFormat === 'inline') {
+        return `
+          <div class="gcs-card" style="max-width: 620px; margin: auto 0; padding: 24px;">
+            <div style="font-size: 11px; font-weight: 700; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px;">
+              In-Card Telemetry Notification
+            </div>
+            ${renderPulseGCSNoticeBar(alertData.type, alertData.message, alertData.actionText, alertData.actionCallback)}
+            <div style="display:flex; justify-content:flex-end; margin-top:20px; gap:10px;">
+              <button type="button" class="btn-secondary" style="width:auto; padding:8px 16px;" onclick="loadScreen('us01_signin')">
+                Sign In
+              </button>
+              <button type="button" class="btn-primary" style="width:auto; padding:8px 20px;" onclick="${alertData.actionCallback}">
+                ${alertData.actionText}
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      // Default: popup format (renders floating notification banner alone)
+      return `
+        <div style="width: 100%; max-width: 640px; margin: auto 0; display: flex; flex-direction: column; align-items: center; gap: 14px;">
+          <div class="gcs-floating-popup popup-${alertData.type}" style="position: relative; top: 0; left: 0; transform: none; width: 100%; box-shadow: 0 14px 36px rgba(0,0,0,0.35);">
+            <div class="popup-icon-badge">${alertData.type === 'err' ? '⛔' : (alertData.type === 'warn' ? '⚠' : '✓')}</div>
+            <div class="popup-content-block">
+              <div class="popup-title">${alertData.title}</div>
+              <div class="popup-message-body">${alertData.message}</div>
+            </div>
+            <div class="popup-actions-block">
+              ${alertData.actionText ? `<button class="popup-action-btn" onclick="${alertData.actionCallback}">${alertData.actionText}</button>` : ''}
+              <button class="popup-close-btn" onclick="loadScreen('us01_signin')" title="Close">✕</button>
+            </div>
+          </div>
+
+          <div style="font-size: 11.5px; opacity: 0.75; text-align: center; margin-top: 8px;">
+            Floating notification banner displayed when FCM telemetry mismatch aborts connection and returns to Connect Aircraft.
+          </div>
+        </div>
+      `;
+    },
+
+    // -------------------------------------------------------------
+    // 8. M3-US03: Password Recovery & Reset Screen (Sequential 3-Step Flow)
+    // -------------------------------------------------------------
+    us03_recovery: () => {
+      const alertData = getRecoveryAlertData();
+      const noticeBarHtml = (notificationFormat === 'inline' && alertData) 
+        ? renderPulseGCSNoticeBar(alertData.type, alertData.message, alertData.actionText, alertData.actionCallback) 
+        : '';
+
+      // Stage 4: Success confirmation modal
+      if (recoveryStage === 'success') {
+        return `
+          <div class="modal-dialog-window centered-layout" style="margin: auto 0; position: relative;">
+            <div class="modal-badge-icon" style="background:rgba(16, 185, 129, 0.15); border:1px solid rgba(16, 185, 129, 0.35); color:#10B981;">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+            </div>
+
+            <div class="modal-title">Password Updated</div>
+
+            <div class="modal-simple-text" style="color:#10B981; font-weight:600; margin-bottom:8px;">
+              Your credentials have been securely updated.
+            </div>
+
+            <div class="modal-simple-text" style="opacity:0.85; font-size:12px; line-height:1.55; margin-bottom:20px;">
+              You can now sign in with your new password. Your 7-day offline flight authorization will be refreshed upon login.
+            </div>
+
+            <div class="modal-actions-bar" style="justify-content:center;">
+              <button type="button" class="btn-primary" style="width:auto; padding:8px 28px;" onclick="setRecoveryStage('request'); loadScreen('us01_signin');">
+                Sign In Now ›
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      // Stage 3: Set New Password & Update Password (shown only once code is verified)
+      if (recoveryStage === 'new_pw') {
+        return `
+          <div class="gcs-card signin-card">
+            <div class="brand-lockup">
+              ${getLogoSVG(currentTheme)}
+              <div class="app-name">Forgot Password</div>
+            </div>
+
+            <div style="font-size:15px; font-weight:700; text-align:center; margin-bottom:4px;">Set New Password</div>
+            <div style="font-size:11.5px; opacity:0.75; text-align:center; margin-bottom:14px; line-height:1.45;">
+              Verification successful. Enter a new password for account <strong style="color:var(--indoor-accent);">${recoveryEmail || 'pilot@skyx.aero'}</strong>.
+            </div>
+
+            ${noticeBarHtml}
+
+            <form onsubmit="event.preventDefault(); submitNewPassword();">
+              <div class="form-group">
+                <div class="form-label-row">
+                  <span>New Password</span>
+                </div>
+                <div class="gcs-input-box">
+                  <input type="password" class="gcs-input" id="recoveryNewPw" placeholder="At least 8 characters" value="NewPulseSecured2026!" required>
+                  <button type="button" class="pw-toggle-btn" onclick="togglePw('recoveryNewPw', this)" title="Show or hide password">
+                    ${getEyeSVG()}
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <span>Confirm New Password</span>
+                </div>
+                <div class="gcs-input-box">
+                  <input type="password" class="gcs-input" id="recoveryConfirmPw" placeholder="Re-enter new password" value="NewPulseSecured2026!" required>
+                  <button type="button" class="pw-toggle-btn" onclick="togglePw('recoveryConfirmPw', this)" title="Show or hide password">
+                    ${getEyeSVG()}
+                  </button>
+                </div>
+              </div>
+
+              <div style="display:flex; gap:10px; margin-top:16px;">
+                <button type="button" class="btn-secondary" style="flex:1; height:36px; font-weight:700;" onclick="cancelRecovery()">
+                  Cancel
+                </button>
+                <button type="submit" class="btn-primary" style="flex:1; height:36px; font-weight:700;">
+                  Update Password
+                </button>
+              </div>
+
+              <div style="margin-top:14px; font-size:11.5px; text-align:center;">
+                <a class="text-link" onclick="cancelRecovery()">Cancel and Sign In</a>
+              </div>
+            </form>
+          </div>
+        `;
+      }
+
+      // Stage 2: Enter Verification Code & Resend Code in the same place
+      if (recoveryStage === 'code') {
+        return `
+          <div class="gcs-card signin-card">
+            <div class="brand-lockup">
+              ${getLogoSVG(currentTheme)}
+              <div class="app-name">Forgot Password</div>
+            </div>
+
+            <div style="font-size:15px; font-weight:700; text-align:center; margin-bottom:4px;">Enter Verification Code</div>
+            <div style="font-size:11.5px; opacity:0.75; text-align:center; margin-bottom:14px; line-height:1.45;">
+              We sent a 6-digit verification code to <strong style="color:var(--indoor-accent);">${recoveryEmail || 'pilot@skyx.aero'}</strong>.
+            </div>
+
+            ${noticeBarHtml}
+
+            <form onsubmit="event.preventDefault(); verifyRecoveryCode();">
+              <div class="form-group">
+                <label class="form-label" for="recoveryCode">6-Digit Verification Code</label>
+                <input type="text" class="gcs-input" id="recoveryCode" placeholder="849201" maxlength="6" style="font-family:monospace; font-size:16px; letter-spacing:4px; text-align:center;" value="" required autofocus>
+              </div>
+
+              <div style="display:flex; justify-content:center; gap:6px; align-items:center; margin-bottom:12px; font-size:11px;">
+                <span style="opacity:0.7;">Didn't receive code?</span>
+                <button type="button" class="text-link" style="background:none; border:none; padding:0; cursor:pointer;" onclick="resendRecoveryCode()">Resend Code</button>
+              </div>
+
+              <div style="display:flex; gap:10px; margin-top:10px;">
+                <button type="button" class="btn-secondary" style="flex:1; height:36px; font-weight:700;" onclick="setRecoveryStage('request')">
+                  ‹ Back
+                </button>
+                <button type="submit" class="btn-primary" style="flex:1; height:36px; font-weight:700;">
+                  Verify Code ›
+                </button>
+              </div>
+
+              <div style="margin-top:14px; font-size:11.5px; text-align:center;">
+                <span style="opacity:0.7;">Remember your credentials?</span>
+                <a class="text-link" style="font-weight:600; margin-left:4px;" onclick="cancelRecovery()">Sign In</a>
+              </div>
+            </form>
+          </div>
+        `;
+      }
+
+      // Stage 1: Request Code (Email Entry)
+      return `
+        <div class="gcs-card signin-card">
+          <div class="brand-lockup">
+            ${getLogoSVG(currentTheme)}
+            <div class="app-name">Forgot Password</div>
+          </div>
+
+          <div style="font-size:11.5px; opacity:0.75; text-align:center; margin-bottom:14px; line-height:1.45;">
+            Enter your registered operator email. We will send a secure 6-digit recovery code.
+          </div>
+
+          ${noticeBarHtml}
+
+          <form onsubmit="event.preventDefault(); submitRecoveryEmail();">
+            <div class="form-group">
+              <div class="form-label-row">
+                <span>Registered Email Address</span>
+              </div>
+              <input type="email" class="gcs-input" id="recoveryEmailInput" value="${recoveryEmail}" placeholder="name@example.com" required>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:16px;">
+              <button type="button" class="btn-secondary" style="flex:1; height:36px; font-weight:700;" onclick="cancelRecovery()">
+                ‹ Back to Sign In
+              </button>
+              <button type="submit" class="btn-primary" style="flex:1; height:36px; font-weight:700;">
+                Send Reset Code
+              </button>
+            </div>
+
+            <div style="margin-top:14px; font-size:11.5px; text-align:center;">
+              <span style="opacity:0.7;">Remember your credentials?</span>
+              <a class="text-link" style="font-weight:600; margin-left:4px;" onclick="cancelRecovery()">Sign In</a>
+            </div>
+          </form>
+        </div>
+      `;
+    },
+
+    // Compatibility Alias
+    us02_pending: () => screens.us02_review()
+  };
+
+  // Review Pipeline Phase Data for US02 Pending
+  function getReviewPhaseInfo(phase) {
+    if (phase === 'phase_signing') {
+      return {
+        badge: 'Engineering Review Approved',
+        title: 'Hardware Verified — Generating License',
+        noticeType: 'info',
+        noticeMsg: 'Hardware verified against factory assembly records. Generating cryptographic license authorization (US06).',
+        actionText: 'Details',
+        actionCallback: "alert('Engineering hardware audit completed. Generating cryptographic signature.')",
+        step1Class: 'done', step1Icon: '✓',
+        step2Class: 'done', step2Icon: '✓',
+        step3Class: 'active', step3Icon: '⏳',
+        step4Class: '', step4Icon: ''
+      };
+    }
+    if (phase === 'phase_key_ready') {
+      return {
+        badge: 'Authorization Ready',
+        title: 'Cryptographic License Issued',
+        noticeType: 'ok',
+        noticeMsg: 'License generated successfully. Activation key ready for first-login vault acknowledgement (US07).',
+        actionText: 'Activate',
+        actionCallback: "alert('License Active: Ready for First-Login License Key Acknowledgement (US07).')",
+        step1Class: 'done', step1Icon: '✓',
+        step2Class: 'done', step2Icon: '✓',
+        step3Class: 'done', step3Icon: '✓',
+        step4Class: 'active', step4Icon: '✉️'
+      };
+    }
+    if (phase === 'phase_correction') {
+      return {
+        badge: 'Correction Requested',
+        title: 'Engineering Review Requires Clarification',
+        noticeType: 'warn',
+        noticeMsg: 'Chassis serial plate requires photo verification against manufacturer delivery records.',
+        actionText: 'Resubmit',
+        actionCallback: "loadScreen('us02_step2')",
+        step1Class: 'done', step1Icon: '✓',
+        step2Class: 'active', step2Icon: '⚠',
+        step3Class: '', step3Icon: '',
+        step4Class: '', step4Icon: ''
+      };
+    }
+    // Default: phase_audit
+    return {
+      badge: 'Pending Engineering Review',
+      title: 'Registration Submitted for Hardware Verification',
+      noticeType: 'warn',
+      noticeMsg: 'Review Window: 24 to 48 Hours. SKYX Engineering is validating aircraft hardware records and generating your license key.',
+      actionText: 'Refresh',
+      actionCallback: 'refreshStatus()',
+      step1Class: 'done', step1Icon: '✓',
+      step2Class: 'active', step2Icon: '⏳',
+      step3Class: '', step3Icon: '',
+      step4Class: '', step4Icon: ''
+    };
+  }
+
+  // Active Sign-In Alert Details (Direct notification on Sign In screen)
+  function getSigninAlertData() {
+    if (us01NoticeState === 'err_creds') {
+      return {
+        type: 'err',
+        title: 'Sign In Failed',
+        message: 'Invalid user account or password. Please verify your credentials or use password recovery.',
+        actionText: 'Retry',
+        actionCallback: "setUS01State('normal')"
+      };
+    }
+    if (us01NoticeState === 'err_device') {
+      return {
+        type: 'warn',
+        title: 'Console Not Authorized',
+        message: 'Your user account is valid, but this console is not authorized for flight operations. Contact your administrator to enroll or reassign this device.',
+        actionText: 'Details',
+        actionCallback: "alert('Console Not Authorized: Contact SkyX Support to bind or reassign this device to your operator account.')"
+      };
+    }
+    if (us01NoticeState === 'err_suspended') {
+      return {
+        type: 'err',
+        title: 'Console Suspended',
+        message: 'This console has been marked replaced or suspended by an administrator. Please sign in using an authorized device or contact SkyX support.',
+        actionText: 'Help',
+        actionCallback: "alert('Suspended Console: This hardware has been decommissioned or replaced. Contact administrator.')"
+      };
+    }
+    if (us01NoticeState === 'err_network') {
+      return {
+        type: 'err',
+        title: 'Server Connection Timeout',
+        message: 'Unable to reach SkyX authentication servers. Please verify your internet connection and try again.',
+        actionText: 'Retry',
+        actionCallback: "setUS01State('normal')"
+      };
+    }
+    if (us01NoticeState === 'ok_session') {
+      return {
+        type: 'ok',
+        title: 'Session Authenticated',
+        message: 'Cryptographic identity verified. Your 7-day offline flight authorization is active on this console.',
+        actionText: 'Dismiss',
+        actionCallback: "setUS01State('normal')"
+      };
+    }
+    return null;
+  }
+
+  function getFCMAlertData() {
+    if (fcmAlertState === 'mismatch') {
+      return {
+        type: 'err',
+        title: 'FCM Verification Failure',
+        message: 'Aircraft Flight Control Module (FCM UID: 1A:2B:3C:4D:5E:6F) does not match registered airframe serial (SKYX-KSN-2026-0842). Telemetry connection aborted.',
+        actionText: 'Retry Connection',
+        actionCallback: "alert('Retrying FCM handshake & telemetry verification...')"
+      };
+    }
+    if (fcmAlertState === 'unregistered') {
+      return {
+        type: 'warn',
+        title: 'Unregistered Hardware Silicon',
+        message: 'FCM UID (3C:4D:5E:6F:7A:8B) is not recognized in the SkyX registry for airframe SKYX-KSN-2026-0842. Flight telemetry restricted to observation.',
+        actionText: 'Review Fleet',
+        actionCallback: "alert('Unregistered FCM: Verify airframe binding in SkyX Fleet Console.')"
+      };
+    }
+    if (fcmAlertState === 'ok') {
+      return {
+        type: 'ok',
+        title: 'FCM Silicon Verified',
+        message: 'FCM UID (1A:2B:3C:4D:5E:6F) successfully verified against registered airframe SKYX-KSN-2026-0842. Connection authorized.',
+        actionText: 'Connected',
+        actionCallback: "alert('FCM handshaked & verified.')"
+      };
+    }
+    return null;
+  }
+
+  function setFCMState(st) {
+    fcmAlertState = st;
+    loadScreen('us09_fcm');
+  }
+
+  function getRecoveryAlertData() {
+    if (recoveryNoticeState === 'err_email') {
+      return {
+        type: 'err',
+        title: 'Account Not Found',
+        message: 'No operator account found with this email address. Please check your spelling or register a new airframe account.',
+        actionText: 'Register',
+        actionCallback: "loadScreen('us02_step1')"
+      };
+    }
+    if (recoveryNoticeState === 'err_code') {
+      return {
+        type: 'err',
+        title: 'Verification Code Failed',
+        message: 'The 6-digit verification code is invalid or has expired. Please check your email or click Resend Code.',
+        actionText: 'Resend',
+        actionCallback: "resendRecoveryCode()"
+      };
+    }
+    if (recoveryNoticeState === 'err_mismatch') {
+      return {
+        type: 'err',
+        title: 'Password Mismatch',
+        message: 'New password and confirmation password do not match. Please ensure both fields are identical.',
+        actionText: 'Review',
+        actionCallback: "dismissNotificationModal()"
+      };
+    }
+    if (recoveryNoticeState === 'err_network') {
+      return {
+        type: 'err',
+        title: 'Server Connection Timeout',
+        message: 'Unable to reach SkyX authentication service. Please verify your network connection and try again.',
+        actionText: 'Retry',
+        actionCallback: "setRecoveryNoticeState('normal')"
+      };
+    }
+    if (recoveryNoticeState === 'ok_sent') {
+      return {
+        type: 'ok',
+        title: 'Verification Code Dispatched',
+        message: `6-digit verification code dispatched to ${recoveryEmail || 'pilot@skyx.aero'}. Valid for 10 minutes.`,
+        actionText: 'OK',
+        actionCallback: "setRecoveryNoticeState('normal')"
+      };
+    }
+    return null;
+  }
+
+  function cancelRecovery() {
+    recoveryStage = 'request';
+    recoveryNoticeState = 'normal';
+    loadScreen('us01_signin');
+  }
+
+  function setRecoveryStage(stage) {
+    recoveryStage = stage;
+    recoveryNoticeState = 'normal';
+    loadScreen('us03_recovery');
+  }
+
+  function setRecoveryNoticeState(st) {
+    recoveryNoticeState = st;
+    document.getElementById('screenBody').innerHTML = screens.us03_recovery();
+    updateNotificationDisplay();
+    renderControllerPanel();
+  }
+
+  function submitRecoveryEmail() {
+    const input = document.getElementById('recoveryEmailInput');
+    if (input && input.value.trim()) {
+      recoveryEmail = input.value.trim();
+    }
+    recoveryStage = 'code';
+    recoveryNoticeState = 'ok_sent';
+    loadScreen('us03_recovery');
+  }
+
+  function verifyRecoveryCode() {
+    const codeInput = document.getElementById('recoveryCode');
+    const code = codeInput ? codeInput.value.trim() : '';
+    
+    // Explicit verification check: if code is not 849201, trigger failure!
+    if (code !== '849201') {
+      if (codeInput) {
+        codeInput.classList.add('input-invalid');
+        codeInput.focus();
+      }
+      setRecoveryNoticeState('err_code');
+      return;
+    }
+
+    if (codeInput) {
+      codeInput.classList.remove('input-invalid');
+    }
+    // Code verified! Now navigate to Set New Password screen
+    recoveryStage = 'new_pw';
+    recoveryNoticeState = 'normal';
+    loadScreen('us03_recovery');
+  }
+
+  function simulateVerifyCodeFailure() {
+    recoveryStage = 'code';
+    loadScreen('us03_recovery');
+    const codeInput = document.getElementById('recoveryCode');
+    if (codeInput) {
+      codeInput.value = '419208'; // wrong code
+      codeInput.classList.add('input-invalid');
+      codeInput.focus();
+    }
+    setRecoveryNoticeState('err_code');
+  }
+
+  function simulateVerifyCodeSuccess() {
+    recoveryStage = 'code';
+    loadScreen('us03_recovery');
+    const codeInput = document.getElementById('recoveryCode');
+    if (codeInput) {
+      codeInput.value = '849201'; // valid sample code
+      codeInput.classList.remove('input-invalid');
+    }
+    setTimeout(() => {
+      verifyRecoveryCode();
+    }, 250);
+  }
+
+  function resendRecoveryCode() {
+    recoveryNoticeState = 'ok_sent';
+    document.getElementById('screenBody').innerHTML = screens.us03_recovery();
+    const codeInput = document.getElementById('recoveryCode');
+    if (codeInput) codeInput.value = '';
+    updateNotificationDisplay();
+    renderControllerPanel();
+  }
+
+  function submitNewPassword() {
+    const pw1 = document.getElementById('recoveryNewPw')?.value;
+    const pw2 = document.getElementById('recoveryConfirmPw')?.value;
+
+    if (!pw1 || pw1.length < 8) {
+      alert('Password must be at least 8 characters.');
+      return;
+    }
+    if (pw1 !== pw2) {
+      setRecoveryNoticeState('err_mismatch');
+      return;
+    }
+
+    // Success
+    recoveryStage = 'success';
+    recoveryNoticeState = 'normal';
+    loadScreen('us03_recovery');
+  }
+
+  function renderSigninNoticeBar() {
+    const alertData = getSigninAlertData();
+    if (!alertData) return '';
+    return renderPulseGCSNoticeBar(alertData.type, alertData.message, alertData.actionText, alertData.actionCallback);
+  }
+
+  function updateNotificationDisplay() {
+    dismissPopup();
+    dismissNotificationModal();
+
+    if (currentScreen === 'us01_signin') {
+      const alertData = getSigninAlertData();
+      if (alertData) {
+        if (notificationFormat === 'popup') {
+          renderFloatingPopNotification(alertData.type, alertData.title, alertData.message, alertData.actionText, alertData.actionCallback);
+        } else if (notificationFormat === 'modal') {
+          renderNotificationModal(alertData.type, alertData.title, alertData.message, alertData.actionText, alertData.actionCallback);
+        }
+      }
+    } else if (currentScreen === 'us03_recovery') {
+      const alertData = getRecoveryAlertData();
+      if (alertData) {
+        if (notificationFormat === 'popup') {
+          renderFloatingPopNotification(alertData.type, alertData.title, alertData.message, alertData.actionText, alertData.actionCallback);
+        } else if (notificationFormat === 'modal') {
+          renderNotificationModal(alertData.type, alertData.title, alertData.message, alertData.actionText, alertData.actionCallback);
+        }
+      }
+    } else if (currentScreen === 'us09_fcm') {
+      const alertData = getFCMAlertData();
+      if (alertData) {
+        if (notificationFormat === 'popup') {
+          renderFloatingPopNotification(alertData.type, alertData.title, alertData.message, alertData.actionText, alertData.actionCallback);
+        } else if (notificationFormat === 'modal') {
+          renderNotificationModal(alertData.type, alertData.title, alertData.message, alertData.actionText, alertData.actionCallback);
+        }
+      }
+    }
+  }
+
+  function setNotificationFormat(fmt) {
+    notificationFormat = fmt;
+    const btnPopup = document.getElementById('btnFmtPopup');
+    const btnInline = document.getElementById('btnFmtInline');
+    const btnModal = document.getElementById('btnFmtModal');
+
+    if (btnPopup) btnPopup.classList.toggle('active', fmt === 'popup');
+    if (btnInline) btnInline.classList.toggle('active', fmt === 'inline');
+    if (btnModal) btnModal.classList.toggle('active', fmt === 'modal');
+
+    // Dismiss active overlays
+    dismissPopup();
+    dismissNotificationModal();
+
+    // Re-render
+    document.getElementById('screenBody').innerHTML = screens[currentScreen]();
+    updateNotificationDisplay();
+  }
+
+  // =========================================================================
+  // Dedicated Separate Controller Panel Logic
+  // =========================================================================
+  function renderControllerPanel() {
+    const headingEl = document.getElementById('controllerHeading');
+    const descEl = document.getElementById('controllerDescription');
+    const container = document.getElementById('stateButtonContainer');
+
+    if (currentScreen === 'us01_signin') {
+      headingEl.innerText = 'US01 State Controller';
+      descEl.innerText = 'Test Sign In states and App Launch status popups:';
+      container.innerHTML = `
+        <div style="font-size:10px; font-weight:700; opacity:0.65; text-transform:uppercase; margin:4px 0 6px 2px;">Next App Launch Status:</div>
+        <button class="state-switch-btn" onclick="showAppLaunchStatusPopup('pending')">
+          <span>App Launch: Under Review (1–2 Days)</span>
+          <span class="state-badge badge-yellow">Popup</span>
+        </button>
+        <button class="state-switch-btn" onclick="showAppLaunchStatusPopup('approved')">
+          <span>App Launch: Access Approved (License Key)</span>
+          <span class="state-badge badge-green">Approved</span>
+        </button>
+        <button class="state-switch-btn" onclick="showAppLaunchStatusPopup('failed')">
+          <span>App Launch: Submission Issue (Not Received)</span>
+          <span class="state-badge badge-red">Error</span>
+        </button>
+
+        <div style="font-size:10px; font-weight:700; opacity:0.65; text-transform:uppercase; margin:14px 0 6px 2px;">Sign In Alerts & Policy:</div>
+        <button class="state-switch-btn ${us01NoticeState === 'normal' ? 'active' : ''}" onclick="dismissStatusPopup(); setUS01State('normal')">
+          <span>Standard Standby (No Alert)</span>
+          <span class="state-badge badge-gray">Standby</span>
+        </button>
+        <button class="state-switch-btn ${us01NoticeState === 'err_creds' ? 'active' : ''}" onclick="dismissStatusPopup(); setUS01State('err_creds')">
+          <span>Invalid User Account (401)</span>
+          <span class="state-badge badge-red">Error</span>
+        </button>
+        <button class="state-switch-btn ${us01NoticeState === 'err_device' ? 'active' : ''}" onclick="dismissStatusPopup(); setUS01State('err_device')">
+          <span>Valid Account, Invalid Console (403)</span>
+          <span class="state-badge badge-yellow">Warn</span>
+        </button>
+        <button class="state-switch-btn ${us01NoticeState === 'err_suspended' ? 'active' : ''}" onclick="dismissStatusPopup(); setUS01State('err_suspended')">
+          <span>Console Suspended / Replaced (US11)</span>
+          <span class="state-badge badge-red">Lockout</span>
+        </button>
+        <button class="state-switch-btn ${us01NoticeState === 'err_network' ? 'active' : ''}" onclick="dismissStatusPopup(); setUS01State('err_network')">
+          <span>Network Timeout (504)</span>
+          <span class="state-badge badge-red">Timeout</span>
+        </button>
+        <button class="state-switch-btn ${us01NoticeState === 'ok_session' ? 'active' : ''}" onclick="dismissStatusPopup(); setUS01State('ok_session')">
+          <span>7-Day Session Active (200)</span>
+          <span class="state-badge badge-green">Valid</span>
+        </button>
+      `;
+    } else if (currentScreen === 'us02_step1') {
+      headingEl.innerText = 'US02 Step 1 Controller';
+      descEl.innerText = 'Test Step 1 operator inputs and validation behavior:';
+      container.innerHTML = `
+        <button class="state-switch-btn" onclick="applyPresetStep1('valid')">
+          <span>Valid Pilot Profile Data</span>
+          <span class="state-badge badge-green">Valid</span>
+        </button>
+        <button class="state-switch-btn" onclick="applyPresetStep1('blank')">
+          <span>Blank Form (Manual Entry)</span>
+          <span class="state-badge badge-gray">Empty</span>
+        </button>
+        <button class="state-switch-btn" onclick="simulateStep1ValidationError()">
+          <span>Trigger Incomplete Error</span>
+          <span class="state-badge badge-red">Test Error</span>
+        </button>
+        <button class="state-switch-btn" onclick="validateAndGoToStep2()">
+          <span>Next: Step 2 Aircraft & Console ›</span>
+          <span class="state-badge badge-yellow">Next</span>
+        </button>
+      `;
+    } else if (currentScreen === 'us02_step2') {
+      headingEl.innerText = 'US02 Step 2 Controller';
+      descEl.innerText = 'Test Step 2 airframe hardware and console binding:';
+      container.innerHTML = `
+        <button class="state-switch-btn" onclick="applyPresetStep2('kissan')">
+          <span>SkyX Kissan (Default)</span>
+          <span class="state-badge badge-green">Ready</span>
+        </button>
+        <button class="state-switch-btn" onclick="applyPresetStep2('cargo')">
+          <span>SkyX Cargo Platform</span>
+          <span class="state-badge badge-yellow">Cargo</span>
+        </button>
+        <button class="state-switch-btn" onclick="simulateStep2MissingSerialError()">
+          <span>Trigger Missing Serial Error</span>
+          <span class="state-badge badge-red">Test Error</span>
+        </button>
+        <button class="state-switch-btn" onclick="simulateStep2UncheckedBindingError()">
+          <span>Trigger Unchecked Console Error</span>
+          <span class="state-badge badge-yellow">Test Warn</span>
+        </button>
+        <button class="state-switch-btn" onclick="showApplicationSentPopup()">
+          <span>Simulate Submit: Application Sent Popup</span>
+          <span class="state-badge badge-blue">Popup</span>
+        </button>
+        <button class="state-switch-btn" onclick="loadScreen('us02_step1')">
+          <span>‹ Back to Step 1 Operator Info</span>
+          <span class="state-badge badge-gray">Back</span>
+        </button>
+      `;
+    } else if (currentScreen === 'us02_failure') {
+      headingEl.innerText = 'Submission Failure Controller';
+      descEl.innerText = 'Test submission failure actions:';
+      container.innerHTML = `
+        <div style="font-size:10px; font-weight:700; opacity:0.65; text-transform:uppercase; margin:2px 0 6px 2px;">Icon Alignment:</div>
+        <div style="display:flex; gap:6px; margin-bottom:10px;">
+          <button class="tool-btn ${modalIconLayout === 'left' ? 'active' : ''}" style="flex:1; padding:5px 6px; font-size:10.5px;" onclick="setModalIconLayout('left')">
+            Left Corner (Sent Style)
+          </button>
+          <button class="tool-btn ${modalIconLayout === 'center' ? 'active' : ''}" style="flex:1; padding:5px 6px; font-size:10.5px;" onclick="setModalIconLayout('center')">
+            Centered Icon
+          </button>
+        </div>
+        <button class="state-switch-btn" onclick="retrySubmissionFromFailureScreen(null)">
+          <span>Retry Submission (Goes to In Review)</span>
+          <span class="state-badge badge-blue">Retry</span>
+        </button>
+        <button class="state-switch-btn" onclick="loadScreen('us02_step2')">
+          <span>‹ Edit Application Form</span>
+          <span class="state-badge badge-gray">Edit</span>
+        </button>
+      `;
+    } else if (currentScreen === 'us02_review') {
+      headingEl.innerText = 'In Review Controller';
+      descEl.innerText = 'Test review actions and lifecycle:';
+      container.innerHTML = `
+        <div style="font-size:10px; font-weight:700; opacity:0.65; text-transform:uppercase; margin:2px 0 6px 2px;">Icon Alignment:</div>
+        <div style="display:flex; gap:6px; margin-bottom:10px;">
+          <button class="tool-btn ${modalIconLayout === 'left' ? 'active' : ''}" style="flex:1; padding:5px 6px; font-size:10.5px;" onclick="setModalIconLayout('left')">
+            Left Corner (Sent Style)
+          </button>
+          <button class="tool-btn ${modalIconLayout === 'center' ? 'active' : ''}" style="flex:1; padding:5px 6px; font-size:10.5px;" onclick="setModalIconLayout('center')">
+            Centered Icon
+          </button>
+        </div>
+        <button class="state-switch-btn" onclick="loadScreen('us02_license_ready')">
+          <span>Approve Application (License Key Ready)</span>
+          <span class="state-badge badge-green">Approve</span>
+        </button>
+        <button class="state-switch-btn" onclick="loadScreen('us02_failure')">
+          <span>Simulate Submission Failure</span>
+          <span class="state-badge badge-red">Error</span>
+        </button>
+        <button class="state-switch-btn" onclick="loadScreen('us01_signin')">
+          <span>Return to Sign In</span>
+          <span class="state-badge badge-gray">Sign In</span>
+        </button>
+      `;
+    } else if (currentScreen === 'us02_license_ready') {
+      headingEl.innerText = 'License Generated Controller';
+      descEl.innerText = 'Test license key copy and proceeding to login:';
+      container.innerHTML = `
+        <div style="font-size:10px; font-weight:700; opacity:0.65; text-transform:uppercase; margin:2px 0 6px 2px;">Icon Alignment:</div>
+        <div style="display:flex; gap:6px; margin-bottom:10px;">
+          <button class="tool-btn ${modalIconLayout === 'left' ? 'active' : ''}" style="flex:1; padding:5px 6px; font-size:10.5px;" onclick="setModalIconLayout('left')">
+            Left Corner (Sent Style)
+          </button>
+          <button class="tool-btn ${modalIconLayout === 'center' ? 'active' : ''}" style="flex:1; padding:5px 6px; font-size:10.5px;" onclick="setModalIconLayout('center')">
+            Centered Icon
+          </button>
+        </div>
+        <button class="state-switch-btn" onclick="copyScreenLicenseKey(null)">
+          <span>Copy License Key</span>
+          <span class="state-badge badge-green">Copy</span>
+        </button>
+        <button class="state-switch-btn" onclick="loadScreen('us01_signin')">
+          <span>Proceed to Sign In</span>
+          <span class="state-badge badge-blue">Sign In</span>
+        </button>
+        <button class="state-switch-btn" onclick="handleDemoClick()">
+          <span>Explore in Demo Mode</span>
+          <span class="state-badge badge-gray">Demo</span>
+        </button>
+      `;
+    } else if (currentScreen === 'us09_fcm') {
+      headingEl.innerText = 'US09 FCM Controller';
+      descEl.innerText = 'Simulate Flight Control Module (FCM) telemetry verification responses:';
+      container.innerHTML = `
+        <div style="font-size:10px; font-weight:700; opacity:0.65; text-transform:uppercase; margin:2px 0 6px 2px;">Simulated Response State:</div>
+        <button class="state-switch-btn ${fcmAlertState === 'mismatch' ? 'active' : ''}" onclick="setFCMState('mismatch')">
+          <span>Mismatched FCM UID (Connection Aborted)</span>
+          <span class="state-badge badge-red">Error</span>
+        </button>
+        <button class="state-switch-btn ${fcmAlertState === 'unregistered' ? 'active' : ''}" onclick="setFCMState('unregistered')">
+          <span>Unregistered Silicon UID (Restricted)</span>
+          <span class="state-badge badge-yellow">Warn</span>
+        </button>
+        <button class="state-switch-btn ${fcmAlertState === 'ok' ? 'active' : ''}" onclick="setFCMState('ok')">
+          <span>FCM Silicon Verified (Authorized)</span>
+          <span class="state-badge badge-green">Ready</span>
+        </button>
+
+        ${notificationFormat === 'modal' ? `
+          <div style="font-size:10px; font-weight:700; opacity:0.65; text-transform:uppercase; margin:12px 0 6px 2px;">Icon Alignment (Modal):</div>
+          <div style="display:flex; gap:6px; margin-bottom:10px;">
+            <button class="tool-btn ${modalIconLayout === 'left' ? 'active' : ''}" style="flex:1; padding:5px 6px; font-size:10.5px;" onclick="setModalIconLayout('left')">
+              Left Corner
+            </button>
+            <button class="tool-btn ${modalIconLayout === 'center' ? 'active' : ''}" style="flex:1; padding:5px 6px; font-size:10.5px;" onclick="setModalIconLayout('center')">
+              Centered Icon
+            </button>
+          </div>
+        ` : ''}
+
+        <div style="font-size:10px; font-weight:700; opacity:0.65; text-transform:uppercase; margin:14px 0 6px 2px;">Telemetry Context:</div>
+        <div style="font-size:11px; opacity:0.8; line-height:1.5; padding:8px 10px; background:rgba(0,0,0,0.25); border-radius:6px; border:1px solid rgba(140,163,184,0.15);">
+          <div>Airframe Serial: <strong>SKYX-KSN-2026-0842</strong></div>
+          <div>MAVLink AUTOPILOT_VERSION UID: <strong style="font-family:monospace; color:#2FD0E8;">${fcmAlertState === 'mismatch' ? '1A:2B:3C:4D:5E:6F' : (fcmAlertState === 'unregistered' ? '3C:4D:5E:6F:7A:8B' : '1A:2B:3C:4D:5E:6F')}</strong></div>
+          <div>Backend Silicon Match: <strong>${fcmAlertState === 'ok' ? 'MATCH CONFIRMED' : 'MISMATCH DETECTED'}</strong></div>
+          <div>Connection Status: <strong style="color:${fcmAlertState === 'ok' ? '#3ED598' : '#F0684F'};">${fcmAlertState === 'ok' ? 'Telemetry Streaming' : 'Connection Aborted'}</strong></div>
+        </div>
+      `;
+    } else if (currentScreen === 'us03_recovery') {
+      headingEl.innerText = 'US03 Recovery Controller';
+      descEl.innerText = 'Simulate sequential password recovery flow and notice alerts:';
+      container.innerHTML = `
+        <div style="font-size:10px; font-weight:700; opacity:0.65; text-transform:uppercase; margin:2px 0 6px 2px;">Sequential Flow Stages:</div>
+        <button class="state-switch-btn ${recoveryStage === 'request' ? 'active' : ''}" onclick="setRecoveryStage('request')">
+          <span>1. Enter Email (Send Code)</span>
+          <span class="state-badge badge-blue">Step 1</span>
+        </button>
+        <button class="state-switch-btn ${recoveryStage === 'code' ? 'active' : ''}" onclick="setRecoveryStage('code')">
+          <span>2. Enter Code & Resend</span>
+          <span class="state-badge badge-yellow">Step 2</span>
+        </button>
+        <button class="state-switch-btn ${recoveryStage === 'new_pw' ? 'active' : ''}" onclick="setRecoveryStage('new_pw')">
+          <span>3. Set New Password & Update</span>
+          <span class="state-badge badge-blue">Step 3</span>
+        </button>
+        <button class="state-switch-btn ${recoveryStage === 'success' ? 'active' : ''}" onclick="setRecoveryStage('success')">
+          <span>4. Password Updated Modal</span>
+          <span class="state-badge badge-green">Done</span>
+        </button>
+
+        <div style="font-size:10px; font-weight:700; opacity:0.65; text-transform:uppercase; margin:14px 0 6px 2px;">NoticeBar Alerts (Connect Aircraft Style):</div>
+        <button class="state-switch-btn ${recoveryNoticeState === 'normal' ? 'active' : ''}" onclick="setRecoveryNoticeState('normal')">
+          <span>Standard Standby (No Notice)</span>
+          <span class="state-badge badge-gray">Clear</span>
+        </button>
+        <button class="state-switch-btn ${recoveryNoticeState === 'err_email' ? 'active' : ''}" onclick="setRecoveryStage('request'); setRecoveryNoticeState('err_email')">
+          <span>Unregistered Email Error (404)</span>
+          <span class="state-badge badge-red">Error</span>
+        </button>
+        <button class="state-switch-btn ${recoveryNoticeState === 'err_code' ? 'active' : ''}" onclick="setRecoveryStage('code'); setRecoveryNoticeState('err_code')">
+          <span>Invalid / Expired Token (400)</span>
+          <span class="state-badge badge-red">Error</span>
+        </button>
+        <button class="state-switch-btn ${recoveryNoticeState === 'err_mismatch' ? 'active' : ''}" onclick="setRecoveryStage('new_pw'); setRecoveryNoticeState('err_mismatch')">
+          <span>Password Mismatch Error</span>
+          <span class="state-badge badge-red">Error</span>
+        </button>
+        <button class="state-switch-btn ${recoveryNoticeState === 'err_network' ? 'active' : ''}" onclick="setRecoveryNoticeState('err_network')">
+          <span>Network Timeout (504)</span>
+          <span class="state-badge badge-red">Timeout</span>
+        </button>
+        <button class="state-switch-btn ${recoveryNoticeState === 'ok_sent' ? 'active' : ''}" onclick="setRecoveryStage('code'); setRecoveryNoticeState('ok_sent')">
+          <span>Code Dispatched Notice (200)</span>
+          <span class="state-badge badge-green">Sent</span>
+        </button>
+
+        <div style="font-size:10px; font-weight:700; opacity:0.65; text-transform:uppercase; margin:14px 0 6px 2px;">Code Verification Scenarios:</div>
+        <button class="state-switch-btn" onclick="simulateVerifyCodeFailure()">
+          <span>Simulate Code Verification Failure (Wrong Code)</span>
+          <span class="state-badge badge-red">Fail (400)</span>
+        </button>
+        <button class="state-switch-btn" onclick="simulateVerifyCodeSuccess()">
+          <span>Simulate Valid Code (849201) › Advances to New PW</span>
+          <span class="state-badge badge-green">Success</span>
+        </button>
+      `;
+    }
+  }
+
+  function copyScreenLicenseKey(btn) {
+    const keyVal = document.getElementById('screenLicenseKey')?.innerText || 'SKYX-LIC-8820-4190-FA21';
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(keyVal).catch(() => {});
+    }
+    if (btn) {
+      btn.classList.add('copied');
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        <span>Copied!</span>
+      `;
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          <span>Copy Key</span>
+        `;
+      }, 2000);
+    }
+  }
+
+  function retrySubmissionFromFailureScreen(btn) {
+    if (btn) {
+      btn.innerHTML = 'Connecting...';
+      btn.disabled = true;
+    }
+    setTimeout(() => {
+      loadScreen('us02_review');
+    }, 600);
+  }
+
+  function simulateReviewApproved() {
+    loadScreen('us02_license_ready');
+  }
+
+  function setUS01State(state) {
+    us01NoticeState = state;
+    document.getElementById('screenBody').innerHTML = screens.us01_signin();
+    updateNotificationDisplay();
+    renderControllerPanel();
+  }
+
+  function applyPresetStep1(mode) {
+    if (mode === 'blank') {
+      regFormData.fullName = '';
+      regFormData.phone = '';
+      regFormData.email = '';
+      regFormData.pw = '';
+      regFormData.dob = '';
+    } else {
+      regFormData.fullName = 'Kailash Nathan';
+      regFormData.phone = '+91 98765 43210';
+      regFormData.email = 'kailash@skyx.aero';
+      regFormData.pw = 'PulseSecured2026!';
+      regFormData.dob = '1994-06-15';
+    }
+    dismissPopup();
+    document.getElementById('screenBody').innerHTML = screens.us02_step1();
+  }
+
+  function simulateStep1ValidationError() {
+    regFormData.fullName = '';
+    document.getElementById('screenBody').innerHTML = screens.us02_step1();
+    validateAndGoToStep2();
+  }
+
+  function applyPresetStep2(model) {
+    if (model === 'cargo') {
+      regFormData.model = 'SkyX Cargo';
+      regFormData.serial = 'SKYX-CRG-2026-0199';
+      regFormData.uin = 'UIN-IND-2026-7721';
+      regFormData.bindConfirm = true;
+    } else {
+      regFormData.model = 'SkyX Kissan';
+      regFormData.serial = 'SKYX-KSN-2026-0842';
+      regFormData.uin = 'UIN-IND-2026-8812';
+      regFormData.bindConfirm = true;
+    }
+    dismissPopup();
+    document.getElementById('screenBody').innerHTML = screens.us02_step2();
+  }
+
+  function simulateStep2MissingSerialError() {
+    regFormData.serial = '';
+    document.getElementById('screenBody').innerHTML = screens.us02_step2();
+    validateAndSubmitRegistration();
+  }
+
+  function simulateStep2UncheckedBindingError() {
+    regFormData.bindConfirm = false;
+    document.getElementById('screenBody').innerHTML = screens.us02_step2();
+    validateAndSubmitRegistration();
+  }
+
+  function setUS02Phase(phase) {
+    us02ReviewPhase = phase;
+    document.getElementById('screenBody').innerHTML = screens.us02_review();
+    renderControllerPanel();
+  }
+
+  // Load Screen Handler
+  function loadScreen(screenId) {
+    // Save any existing form inputs before navigating
+    saveCurrentInputs();
+
+    currentScreen = screenId;
+    dismissPopup();
+    dismissNotificationModal();
+    
+    // Update pills
+    const p1 = document.getElementById('btnUS01');
+    const p2 = document.getElementById('btnUS02Step1');
+    const p3 = document.getElementById('btnUS02Step2');
+    const p4 = document.getElementById('btnUS09FCM');
+    const p5 = document.getElementById('btnUS03Recovery');
+    if (p1) p1.classList.toggle('active', screenId === 'us01_signin');
+    if (p2) p2.classList.toggle('active', screenId === 'us02_step1');
+    if (p3) p3.classList.toggle('active', screenId === 'us02_step2');
+    if (p4) p4.classList.toggle('active', screenId === 'us09_fcm');
+    if (p5) p5.classList.toggle('active', screenId === 'us03_recovery');
+
+    // Update Header
+    const titleEl = document.getElementById('panelHeaderTitle');
+    const subEl = document.getElementById('panelHeaderSub');
+    // Top Header is removed across all screens
+    const topHeaderEl = document.getElementById('topHeader');
+    if (topHeaderEl) topHeaderEl.style.display = 'none';
+
+    // Render screen inside authentic viewport
+    document.getElementById('screenBody').innerHTML = screens[screenId]();
+
+    // Update notification
+    updateNotificationDisplay();
+
+    // Render separate controller panel & criteria checklist
+    renderControllerPanel();
+    renderCriteria(screenId);
+  }
+
+  function renderCriteria(screenId) {
+    const data = criteriaData[screenId];
+    document.getElementById('criteriaHeader').innerText = data.title;
+    let html = '';
+    data.items.forEach(item => {
+      html += `<div class="criterion-item active-story">${item}</div>`;
+    });
+    document.getElementById('criteriaList').innerHTML = html;
+  }
+
+  // Interaction handlers
+  function togglePw(inputId, btn) {
+    const el = document.getElementById(inputId);
+    if (el.type === 'password') {
+      el.type = 'text';
+      btn.innerHTML = getEyeSlashSVG();
+      btn.setAttribute('title', 'Hide password');
+    } else {
+      el.type = 'password';
+      btn.innerHTML = getEyeSVG();
+      btn.setAttribute('title', 'Show password');
+    }
+  }
+
+  function simulateSignin() {
+    const btn = document.getElementById('btnSubmitSignin');
+    btn.innerHTML = 'Signing in...';
+    btn.style.opacity = '0.85';
+    setTimeout(() => {
+      btn.innerHTML = 'Signed In';
+      btn.style.background = '#3ED598';
+      setUS01State('ok_session');
+      setTimeout(() => {
+        btn.innerHTML = 'Sign In';
+        btn.style.background = '';
+        btn.style.opacity = '1';
+      }, 500);
+    }, 800);
+  }
+
+  function refreshStatus() {
+    alert('Application Status:\nApplication #SKYX-REG-2026-9041 is currently in Hardware Silicon Audit (Expected: 24 to 48 Hours).');
+  }
+
+  function handleDemoClick() {
+    alert('Demo Mode Activated:\nIsolated simulation environment initialized with sample aircraft and flight data.\nPhysical aircraft links and arming interlocks remain disabled.');
+  }
+
+  // Viewport & Theme controls
+  function setTheme(t) {
+    currentTheme = t;
+    const vp = document.getElementById('viewport');
+    vp.className = `screen-viewport ${t === 'dark' ? 'theme-dark' : 'theme-light'} ${document.getElementById('btnPortrait').classList.contains('active') ? 'portrait-mode' : ''} ${document.getElementById('btnWide').classList.contains('active') ? 'wide-mode' : ''}`;
+    
+    document.getElementById('btnDark').classList.toggle('active', t === 'dark');
+    document.getElementById('btnLight').classList.toggle('active', t === 'light');
+
+    // Update top header logo if present
+    const headerLogo = document.getElementById('topHeaderLogo');
+    if (headerLogo) {
+      const arcColor = (t === 'dark') ? '#EAF2F7' : '#071A2B';
+      headerLogo.innerHTML = `
+        <path d="M84.17,19.83 A45.5,45.5 0 0 1 84.17,84.17" fill="none" stroke="${arcColor}" stroke-width="13"/>
+        <path d="M19.83,84.17 A45.5,45.5 0 0 1 19.83,19.83" fill="none" stroke="${arcColor}" stroke-width="13"/>
+        <polygon points="52,35 69,52 52,69 35,52" fill="#00C4DE"/>
+      `;
+    }
+
+    // Re-render screen to refresh SVGs & Tokens
+    loadScreen(currentScreen);
+  }
+
+  function setViewport(mode) {
+    const vp = document.getElementById('viewport');
+    vp.classList.remove('wide-mode', 'portrait-mode');
+    document.getElementById('btnStandard').classList.remove('active');
+    document.getElementById('btnWide').classList.remove('active');
+    document.getElementById('btnPortrait').classList.remove('active');
+
+    if (mode === 'wide') {
+      vp.classList.add('wide-mode');
+      document.getElementById('btnWide').classList.add('active');
+    } else if (mode === 'portrait') {
+      vp.classList.add('portrait-mode');
+      document.getElementById('btnPortrait').classList.add('active');
+    } else {
+      document.getElementById('btnStandard').classList.add('active');
+    }
+  }
+
+  // Initialize from URL parameters or hash
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('theme') === 'light') {
+    setTheme('light');
+  }
+
+  const hash = window.location.hash.replace('#', '');
+  if (hash && screens[hash]) {
+    loadScreen(hash);
+  } else {
+    loadScreen('us01_signin');
+  }
+</script>
+
+</body>
+</html>

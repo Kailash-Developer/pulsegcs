@@ -22,6 +22,9 @@ public:
     static QString appVersion();
     static QString buildNumber();
 
+    Q_INVOKABLE void requestPortraitOrientation();
+    Q_INVOKABLE void requestLandscapeOrientation();
+
 signals:
     void activeChanged(bool active);
     void startupFinished();

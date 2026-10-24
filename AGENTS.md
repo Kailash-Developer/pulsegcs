@@ -25,6 +25,8 @@ enforced by pre-commit hooks, so ignoring them wastes a build cycle. Full list w
 - **No `Q_ASSERT` in production code** — use defensive checks with early returns (`check-no-qassert`).
 - **No `QTest::ignoreMessage`** in tests — use `expectLogMessage`/`ignoreLogMessage` (`check-no-qtest-ignore-message`).
 - **No fixed-delay `QTest::qWait(<n>)`** — use `QTRY_*_WITH_TIMEOUT` or `QSignalSpy::wait` (`check-no-fixed-qwait`).
+- **Valid QML Module Whitelist** — NEVER invent submodules (e.g. `QGroundControl.ScreenTools` or `QGroundControl.Palette` do NOT exist; both live in `QGroundControl.Controls`).
+- **Signal-Slot Strict Parity** — Every signal connected in a parent view MUST exist in the child component declaration.
 
 ## Critical Files (Read First!)
 
@@ -180,5 +182,45 @@ Every agent operating in this repository **MUST** follow this strict read protoc
    - Never grep or read entire directories or large file trees when knowledge is already established.
    - Never re-analyze already-solved bugs or re-examine completed user story files.
    - Never finish a task without appending the final verified state to the Context Ledger and updating the Graphify knowledge base.
+
+---
+
+## Error-Free Code Generation & Ledger Invariant Protocol (Zero Regressions)
+
+To ensure zero repeated runtime errors, every agent and subagent generating or modifying code MUST strictly comply with this three-step pre-flight protocol:
+
+### Step 1: Consult the Context Ledger Anti-Pattern Registry
+Before touching code, agents MUST read the `## Known Anti-Patterns & Prohibited Constructs` section of `.context_ledger.md`. Repeating an error recorded in the registry is considered a critical workflow failure.
+
+### Step 2: Adhere to Canonical Module Whitelist & Signal Parity
+1. **Canonical Qt 6 / QGroundControl QML Imports**:
+   - Never guess or extrapolate module paths from C++ class names or singletons.
+   - Allowed QML modules in this repository:
+     - `import QtQuick`
+     - `import QtQuick.Controls`
+     - `import QtQuick.Layouts`
+     - `import QtQuick.Window`
+     - `import QtQuick.Dialogs`
+     - `import QGroundControl`
+     - `import QGroundControl.Controls` (Contains `ScreenTools`, `QGCPalette`, `QGCButton`, etc.)
+     - `import QGroundControl.FactControls`
+     - `import QGroundControl.FlyView`
+     - `import QGroundControl.FlightMap`
+     - `import QGroundControl.PlanView`
+     - `import QGroundControl.Toolbar`
+     - `import PulseGCS` or `import PulseGCS 1.0`
+   - **STRICTLY PROHIBITED**: `QGroundControl.ScreenTools`, `QGroundControl.Palette`, `QGroundControl.Controls.Button`, or any non-existent submodule.
+2. **Parent-Child Signal & Property Parity**:
+   - When parenting an element (e.g. `PulseGCSSignInView` in `MainWindow.qml`), cross-check that every `on<SignalName>` handler in the parent matches an explicit `signal <signalName>(...)` in the child component.
+   - Every exposed property referenced by external callers must be explicitly declared and typed.
+3. **Type-Property Validity (e.g. No `color` on `Item`)**:
+   - Qt Quick `Item` and layout components (`ColumnLayout`, `RowLayout`) do NOT have a `color` property.
+   - Use `Rectangle` for any component that defines a background color, border, or radius.
+
+### Step 3: Mandatory Pre-Flight Verification Gate Before Notifying User
+Before notifying the user to initiate a build, the agent MUST run:
+1. Static import and syntax check across all modified QML files.
+2. The verification test suite (`node custom/tests/test_auth_validators.js` or corresponding feature test runner).
+3. If any test or import check fails, the agent must diagnose and resolve it immediately without prompting the user to build.
 
 
