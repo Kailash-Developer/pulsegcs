@@ -22,6 +22,7 @@ ColumnLayout {
 
     function resetFlow() {
         recoveryStage = "request"
+        recoveryEmail = ""
         recoveryCode = ""
         recoveryNewPw = ""
         recoveryConfirmPw = ""
@@ -92,7 +93,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 implicitHeight: 36
                 text: root.recoveryEmail
-                placeholderText: qsTr("pilot@skyx.aero")
+                placeholderText: qsTr("name@example.com")
                 placeholderTextColor: PulseGCSTokens.metaText(root.isOutdoor)
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 12
@@ -234,7 +235,7 @@ ColumnLayout {
 
         Text {
             Layout.fillWidth: true
-            text: qsTr("We sent a 6-digit verification code to %1.").arg(root.recoveryEmail || "pilot@skyx.aero")
+            text: qsTr("We sent a 6-digit verification code to %1.").arg(root.recoveryEmail.length > 0 ? root.recoveryEmail : qsTr("your email address"))
             font.family: ScreenTools.normalFontFamily
             font.pixelSize: 11
             color: PulseGCSTokens.mutedText(root.isOutdoor)
@@ -304,7 +305,8 @@ ColumnLayout {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        root.noticeRequested("ok", qsTr("Verification code re-sent to %1 (Simulated Code: 849201)").arg(root.recoveryEmail || "pilot@skyx.aero"))
+                        root.recoveryCode = ""
+                        root.noticeRequested("ok", qsTr("Verification code re-sent to %1 (Simulated Code: 849201)").arg(root.recoveryEmail.length > 0 ? root.recoveryEmail : qsTr("your email address")))
                     }
                 }
             }
@@ -434,7 +436,7 @@ ColumnLayout {
 
         Text {
             Layout.fillWidth: true
-            text: qsTr("Verification successful. Enter a new password for account %1.").arg(root.recoveryEmail || "pilot@skyx.aero")
+            text: qsTr("Verification successful. Enter a new password for account %1.").arg(root.recoveryEmail.length > 0 ? root.recoveryEmail : qsTr("your account"))
             font.family: ScreenTools.normalFontFamily
             font.pixelSize: 11
             color: PulseGCSTokens.mutedText(root.isOutdoor)

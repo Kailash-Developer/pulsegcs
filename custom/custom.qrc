@@ -43,6 +43,7 @@
         <file alias="PulseGCSSignInCard.qml">qml/PulseGCS/PulseGCSSignInCard.qml</file>
         <file alias="PulseGCSRegistrationCard.qml">qml/PulseGCS/PulseGCSRegistrationCard.qml</file>
         <file alias="PulseGCSRecoveryCard.qml">qml/PulseGCS/PulseGCSRecoveryCard.qml</file>
+        <file alias="PulseGCSAuthService.qml">qml/PulseGCS/PulseGCSAuthService.qml</file>
         <file alias="qmldir">qml/PulseGCS/qmldir</file>
     </qresource>
     <qresource prefix="/Custom/qml/QGroundControl">

@@ -237,7 +237,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 implicitHeight: 34
                 text: root.regEmail
-                placeholderText: qsTr("pilot@skyx.aero")
+                placeholderText: qsTr("name@example.com")
                 placeholderTextColor: PulseGCSTokens.metaText(root.isOutdoor)
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 12
@@ -285,7 +285,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 implicitHeight: 34
                 text: root.regDOB
-                placeholderText: qsTr("DD / MM / YYYY (e.g. 1995-06-15)")
+                placeholderText: qsTr("DD / MM / YYYY (e.g. 15 / 06 / 1995)")
                 placeholderTextColor: PulseGCSTokens.metaText(root.isOutdoor)
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 12

@@ -18,6 +18,14 @@ Rectangle {
     color: PulseGCSTokens.surfaceBackground(root.isOutdoor)
     QGCPalette { id: qgcPal }
 
+    // Backend Authentication & Mock/Live Service
+    property alias authService: authService
+    PulseGCSAuthService {
+        id: authService
+        baseUrl: "https://api.pulsegcs.skyx.aero"
+        mockMode: true
+    }
+
     // Navigation and state machine
     property string currentView: "signin" // "signin" | "register" | "recovery"
     property string inlineNoticeType: ""
@@ -119,18 +127,14 @@ Rectangle {
 
                         onSignInRequested: function(email, password) {
                             root.clearNotice()
-                            // Simulated credential verification
-                            if (email.toLowerCase().indexOf("unregistered") !== -1) {
-                                root.showNotice("err", qsTr("No operator account found matching this email."))
-                                return
-                            }
-                            if (password === "wrongpassword") {
-                                root.showNotice("err", qsTr("Invalid credentials. Please re-enter your password."))
-                                return
-                            }
-                            // Default successful flight authorization login
-                            root.showNotice("ok", qsTr("Operator authorized. 7-day flight console attestation active."))
-                            root.signInSucceeded(email)
+                            authService.signIn(email, password, function(success, data, errorMsg) {
+                                if (success) {
+                                    root.showNotice("ok", qsTr("Operator authorized. 7-day flight console attestation active."))
+                                    root.signInSucceeded(email)
+                                } else {
+                                    root.showNotice("err", errorMsg)
+                                }
+                            })
                         }
 
                         onDemoModeRequested: {
@@ -170,8 +174,14 @@ Rectangle {
 
                         onApplicationSubmitted: function(regData) {
                             root.clearNotice()
-                            applicationSentPopup.open()
-                            root.registrationCompleted(regData)
+                            authService.register(regData, function(success, data, errorMsg) {
+                                if (success) {
+                                    applicationSentPopup.open()
+                                    root.registrationCompleted(regData)
+                                } else {
+                                    root.showNotice("err", errorMsg)
+                                }
+                            })
                         }
 
                         onNoticeRequested: function(type, msg) {

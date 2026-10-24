@@ -23,4 +23,5 @@ PulseGCSPasswordField 1.0 PulseGCSPasswordField.qml
 PulseGCSSignInCard 1.0 PulseGCSSignInCard.qml
 PulseGCSRegistrationCard 1.0 PulseGCSRegistrationCard.qml
 PulseGCSRecoveryCard 1.0 PulseGCSRecoveryCard.qml
+PulseGCSAuthService 1.0 PulseGCSAuthService.qml
 

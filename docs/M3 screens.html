@@ -2845,7 +2845,7 @@
             <form onsubmit="event.preventDefault(); verifyRecoveryCode();">
               <div class="form-group">
                 <label class="form-label" for="recoveryCode">6-Digit Verification Code</label>
-                <input type="text" class="gcs-input" id="recoveryCode" placeholder="849201" maxlength="6" style="font-family:monospace; font-size:16px; letter-spacing:4px; text-align:center;" value="849201" required autofocus>
+                <input type="text" class="gcs-input" id="recoveryCode" placeholder="849201" maxlength="6" style="font-family:monospace; font-size:16px; letter-spacing:4px; text-align:center;" value="" required autofocus>
               </div>
 
               <div style="display:flex; justify-content:center; gap:6px; align-items:center; margin-bottom:12px; font-size:11px;">
@@ -2890,7 +2890,7 @@
               <div class="form-label-row">
                 <span>Registered Email Address</span>
               </div>
-              <input type="email" class="gcs-input" id="recoveryEmailInput" value="${recoveryEmail}" placeholder="pilot@skyx.aero" required>
+              <input type="email" class="gcs-input" id="recoveryEmailInput" value="${recoveryEmail}" placeholder="name@example.com" required>
             </div>
 
             <div style="display:flex; gap:10px; margin-top:16px;">
@@ -3189,6 +3189,8 @@
   function resendRecoveryCode() {
     recoveryNoticeState = 'ok_sent';
     document.getElementById('screenBody').innerHTML = screens.us03_recovery();
+    const codeInput = document.getElementById('recoveryCode');
+    if (codeInput) codeInput.value = '';
     updateNotificationDisplay();
     renderControllerPanel();
   }
