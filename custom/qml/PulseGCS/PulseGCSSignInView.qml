@@ -15,7 +15,7 @@ Rectangle {
     signal demoModeClicked()
     signal registrationCompleted(var regData)
 
-    color: PulseGCSTokens.surfaceBackground(root.isOutdoor)
+    color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShade : PulseGCSTokens.ink
     QGCPalette { id: qgcPal }
 
     // Backend Authentication & Mock/Live Service
@@ -346,10 +346,14 @@ Rectangle {
         width: Math.min(parent.width - 32, 440)
         padding: 24
 
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(5/255, 12/255, 20/255, 0.75)
+        }
+
         background: Rectangle {
             radius: PulseGCSTokens.radiusCard
             color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
-            border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
+            border.color: root.isOutdoor ? PulseGCSTokens.subtleBorder(true) : Qt.rgba(47/255, 208/255, 232/255, 0.35)
             border.width: 1
         }
 
@@ -363,8 +367,8 @@ Rectangle {
                     Layout.preferredWidth: 44
                     Layout.preferredHeight: 44
                     radius: 22
-                    color: root.isOutdoor ? "rgba(0, 146, 168, 0.12)" : "rgba(47, 208, 232, 0.15)"
-                    border.color: root.isOutdoor ? "rgba(0, 146, 168, 0.3)" : "rgba(47, 208, 232, 0.35)"
+                    color: root.isOutdoor ? Qt.rgba(0/255, 146/255, 168/255, 0.12) : Qt.rgba(47/255, 208/255, 232/255, 0.15)
+                    border.color: root.isOutdoor ? Qt.rgba(0/255, 146/255, 168/255, 0.3) : Qt.rgba(47/255, 208/255, 232/255, 0.35)
                     border.width: 1
 
                     Canvas {
@@ -375,7 +379,7 @@ Rectangle {
                             var ctx = getContext("2d")
                             ctx.reset()
                             ctx.strokeStyle = root.isOutdoor ? "#0092A8" : "#2FD0E8"
-                            ctx.fillStyle = root.isOutdoor ? "rgba(0,146,168,0.2)" : "rgba(47,208,232,0.2)"
+                            ctx.fillStyle = root.isOutdoor ? Qt.rgba(0/255, 146/255, 168/255, 0.2) : Qt.rgba(47/255, 208/255, 232/255, 0.2)
                             ctx.lineWidth = 1.8
                             ctx.lineJoin = "round"
                             ctx.lineCap = "round"
@@ -491,10 +495,14 @@ Rectangle {
         width: Math.min(parent.width - 32, 440)
         padding: 24
 
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(5/255, 12/255, 20/255, 0.75)
+        }
+
         background: Rectangle {
             radius: PulseGCSTokens.radiusCard
             color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
-            border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
+            border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : Qt.rgba(239/255, 68/255, 68/255, 0.35)
             border.width: 1
         }
 
@@ -508,8 +516,8 @@ Rectangle {
                     Layout.preferredWidth: 44
                     Layout.preferredHeight: 44
                     radius: 22
-                    color: root.isOutdoor ? PulseGCSTokens.outdoorErrBg : "rgba(239, 68, 68, 0.15)"
-                    border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : "rgba(239, 68, 68, 0.35)"
+                    color: root.isOutdoor ? PulseGCSTokens.outdoorErrBg : Qt.rgba(239/255, 68/255, 68/255, 0.15)
+                    border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : Qt.rgba(239/255, 68/255, 68/255, 0.35)
                     border.width: 1
 
                     Canvas {
@@ -663,10 +671,14 @@ Rectangle {
         width: Math.min(parent.width - 40, 380)
         padding: 24
 
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(5/255, 12/255, 20/255, 0.75)
+        }
+
         background: Rectangle {
             radius: PulseGCSTokens.radiusCard
             color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
-            border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
+            border.color: root.isOutdoor ? PulseGCSTokens.subtleBorder(true) : Qt.rgba(47/255, 208/255, 232/255, 0.35)
             border.width: 1
         }
 
@@ -763,10 +775,14 @@ Rectangle {
         width: Math.min(parent.width - 32, 440)
         padding: 24
 
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(5/255, 12/255, 20/255, 0.75)
+        }
+
         background: Rectangle {
             radius: PulseGCSTokens.radiusCard
             color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
-            border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
+            border.color: root.isOutdoor ? PulseGCSTokens.outdoorOk : Qt.rgba(16/255, 185/255, 129/255, 0.35)
             border.width: 1
         }
 
@@ -780,8 +796,8 @@ Rectangle {
                     Layout.preferredWidth: 44
                     Layout.preferredHeight: 44
                     radius: 22
-                    color: root.isOutdoor ? "#E6F4EA" : "rgba(16, 185, 129, 0.15)"
-                    border.color: root.isOutdoor ? "#34A853" : "rgba(16, 185, 129, 0.35)"
+                    color: root.isOutdoor ? "#E6F4EA" : Qt.rgba(16/255, 185/255, 129/255, 0.15)
+                    border.color: root.isOutdoor ? "#34A853" : Qt.rgba(16/255, 185/255, 129/255, 0.35)
                     border.width: 1
 
                     Canvas {
@@ -912,7 +928,7 @@ Rectangle {
 
                         background: Rectangle {
                             radius: PulseGCSTokens.radiusButton
-                            color: root.licenseCopied ? (root.isOutdoor ? "#E6F4EA" : "rgba(16, 185, 129, 0.15)") : (root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.surfacePanel)
+                            color: root.licenseCopied ? (root.isOutdoor ? "#E6F4EA" : Qt.rgba(16/255, 185/255, 129/255, 0.15)) : (root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.surfacePanel)
                             border.color: root.licenseCopied ? (root.isOutdoor ? "#34A853" : "#10B981") : PulseGCSTokens.buttonBorderColor(root.isOutdoor)
                             border.width: 1
                         }
@@ -1057,10 +1073,14 @@ Rectangle {
         width: Math.min(parent.width - 32, 420)
         padding: 24
 
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(5/255, 12/255, 20/255, 0.75)
+        }
+
         background: Rectangle {
             radius: PulseGCSTokens.radiusCard
             color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
-            border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : PulseGCSTokens.err
+            border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : Qt.rgba(239/255, 68/255, 68/255, 0.35)
             border.width: 1
         }
 
@@ -1074,8 +1094,8 @@ Rectangle {
                     Layout.preferredWidth: 44
                     Layout.preferredHeight: 44
                     radius: 22
-                    color: root.isOutdoor ? PulseGCSTokens.outdoorErrBg : "rgba(239, 68, 68, 0.15)"
-                    border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : "rgba(239, 68, 68, 0.35)"
+                    color: root.isOutdoor ? PulseGCSTokens.outdoorErrBg : Qt.rgba(239/255, 68/255, 68/255, 0.15)
+                    border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : Qt.rgba(239/255, 68/255, 68/255, 0.35)
                     border.width: 1
 
                     Canvas {
@@ -1192,10 +1212,14 @@ Rectangle {
         width: Math.min(parent.width - 32, 420)
         padding: 24
 
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(5/255, 12/255, 20/255, 0.75)
+        }
+
         background: Rectangle {
             radius: PulseGCSTokens.radiusCard
             color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
-            border.color: root.isOutdoor ? PulseGCSTokens.outdoorWarn : PulseGCSTokens.warn
+            border.color: root.isOutdoor ? PulseGCSTokens.outdoorWarn : Qt.rgba(245/255, 158/255, 11/255, 0.35)
             border.width: 1
         }
 
@@ -1209,8 +1233,8 @@ Rectangle {
                     Layout.preferredWidth: 44
                     Layout.preferredHeight: 44
                     radius: 22
-                    color: root.isOutdoor ? PulseGCSTokens.outdoorWarnBg : "rgba(245, 158, 11, 0.15)"
-                    border.color: root.isOutdoor ? PulseGCSTokens.outdoorWarn : "rgba(245, 158, 11, 0.35)"
+                    color: root.isOutdoor ? PulseGCSTokens.outdoorWarnBg : Qt.rgba(245/255, 158/255, 11/255, 0.15)
+                    border.color: root.isOutdoor ? PulseGCSTokens.outdoorWarn : Qt.rgba(245/255, 158/255, 11/255, 0.35)
                     border.width: 1
 
                     Canvas {
@@ -1370,10 +1394,14 @@ Rectangle {
         width: Math.min(parent.width - 32, 440)
         padding: 24
 
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(5/255, 12/255, 20/255, 0.75)
+        }
+
         background: Rectangle {
             radius: PulseGCSTokens.radiusCard
             color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
-            border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : PulseGCSTokens.err
+            border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : Qt.rgba(239/255, 68/255, 68/255, 0.35)
             border.width: 1
         }
 
@@ -1387,8 +1415,8 @@ Rectangle {
                     Layout.preferredWidth: 44
                     Layout.preferredHeight: 44
                     radius: 22
-                    color: root.isOutdoor ? PulseGCSTokens.outdoorErrBg : "rgba(239, 68, 68, 0.15)"
-                    border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : "rgba(239, 68, 68, 0.35)"
+                    color: root.isOutdoor ? PulseGCSTokens.outdoorErrBg : Qt.rgba(239/255, 68/255, 68/255, 0.15)
+                    border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : Qt.rgba(239/255, 68/255, 68/255, 0.35)
                     border.width: 1
 
                     Canvas {

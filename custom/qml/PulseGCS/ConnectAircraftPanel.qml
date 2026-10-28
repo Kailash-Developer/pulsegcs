@@ -174,7 +174,7 @@ Rectangle {
                     Layout.preferredWidth: 44
                     Layout.preferredHeight: 44
                     radius: 22
-                    color: root.isOutdoor ? PulseGCSTokens.outdoorErrBg : "rgba(239, 68, 68, 0.15)"
+                    color: root.isOutdoor ? PulseGCSTokens.outdoorErrBg : Qt.rgba(239/255, 68/255, 68/255, 0.15)
                     border.color: PulseGCSTokens.statusColor("err", root.isOutdoor)
                     border.width: 1
 
