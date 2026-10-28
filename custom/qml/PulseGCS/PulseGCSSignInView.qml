@@ -20,6 +20,7 @@ Rectangle {
 
     // Backend Authentication & Mock/Live Service
     property alias authService: authService
+    property alias signInCard: signInCard
     PulseGCSAuthService {
         id: authService
         baseUrl: "https://api.pulsegcs.skyx.aero"
@@ -30,6 +31,78 @@ Rectangle {
     property string currentView: "signin" // "signin" | "register" | "recovery"
     property string inlineNoticeType: ""
     property string inlineNoticeMsg: ""
+
+    // Popups aliases for testability & external access
+    property alias licenseReadyPopup: licenseReadyPopup
+    property alias suspendedLockoutPopup: suspendedLockoutPopup
+    property alias sessionExpiredPopup: sessionExpiredPopup
+    property alias fcmMismatchPopup: fcmMismatchPopup
+    property alias applicationSentPopup: applicationSentPopup
+    property alias submissionIssuePopup: submissionIssuePopup
+    property alias passwordUpdatedPopup: passwordUpdatedPopup
+
+    // M3-US07: License Key state
+    property string issuedLicenseKey: "SKYX-LIC-8820-4190-FA21"
+    property string licensedDroneModel: "SkyX Kissan"
+    property string licensedDroneSerial: "SKYX-KSN-2026-0842"
+    property string currentLicensedUser: ""
+    property bool licenseCopied: false
+
+    // M3-US09: FCM Mismatch state
+    property string fcmMismatchUid: "1A:2B:3C:4D:5E:6F"
+    property string fcmMismatchSerial: "SKYX-KSN-2026-0842"
+
+    // Clipboard helper
+    TextEdit {
+        id: copyHelper
+        visible: false
+    }
+
+    function copyToClipboard(textToCopy) {
+        if (typeof PulseGCSStartupController !== "undefined" && typeof PulseGCSStartupController.copyToClipboard === "function") {
+            PulseGCSStartupController.copyToClipboard(textToCopy)
+        }
+        copyHelper.text = textToCopy
+        copyHelper.selectAll()
+        copyHelper.copy()
+    }
+
+    function showLicenseReadyModal(key, model, serial) {
+        if (key) issuedLicenseKey = key
+        if (model) licensedDroneModel = model
+        if (serial) licensedDroneSerial = serial
+        licenseCopied = false
+        licenseReadyPopup.open()
+    }
+
+    function showApplicationUnderReviewModal() {
+        applicationSentPopup.open()
+    }
+
+    function showSubmissionIssueModal() {
+        submissionIssuePopup.open()
+    }
+
+    function showSuspendedModal() {
+        suspendedLockoutPopup.open()
+    }
+
+    function showSessionExpiredModal() {
+        sessionExpiredPopup.open()
+    }
+
+    function showFcmMismatchModal(uid, serial) {
+        if (uid) fcmMismatchUid = uid
+        if (serial) fcmMismatchSerial = serial
+        fcmMismatchPopup.open()
+    }
+
+    Timer {
+        id: copyResetTimer
+        interval: 2500
+        repeat: false
+        onTriggered: root.licenseCopied = false
+    }
 
     // Auto-dismiss timer for M3 notification banner (Option 1: 5s auto-close)
     Timer {
@@ -129,10 +202,41 @@ Rectangle {
                             root.clearNotice()
                             authService.signIn(email, password, function(success, data, errorMsg) {
                                 if (success) {
-                                    root.showNotice("ok", qsTr("Operator authorized. 7-day flight console attestation active."))
+                                    if (data && data.licenseReady) {
+                                        root.issuedLicenseKey = data.licenseKey || "SKYX-LIC-8820-4190-FA21"
+                                        root.licensedDroneModel = data.droneModel || "SkyX Kissan"
+                                        root.licensedDroneSerial = data.serialNumber || "SKYX-KSN-2026-0842"
+                                        root.currentLicensedUser = email
+                                        root.licenseCopied = false
+                                        root.clearNotice()
+                                        licenseReadyPopup.open()
+                                        return
+                                    }
+                                    root.showNotice("ok", qsTr("Session Authenticated: Cryptographic identity verified. Your 7-day offline flight authorization is active on this device."))
                                     root.signInSucceeded(email)
                                 } else {
-                                    root.showNotice("err", errorMsg)
+                                    if (data && data.errorCode === "CONSOLE_SUSPENDED") {
+                                        root.clearNotice()
+                                        suspendedLockoutPopup.open()
+                                    } else if (data && data.errorCode === "SESSION_EXPIRED") {
+                                        root.clearNotice()
+                                        sessionExpiredPopup.open()
+                                    } else if (data && data.errorCode === "APPLICATION_UNDER_REVIEW") {
+                                        root.clearNotice()
+                                        applicationSentPopup.open()
+                                    } else if (data && data.errorCode === "APPLICATION_SUBMISSION_FAILED") {
+                                        root.clearNotice()
+                                        submissionIssuePopup.open()
+                                    } else if (data && data.errorCode === "CONSOLE_UNBOUND") {
+                                        root.showNotice("warn", errorMsg)
+                                    } else if (data && data.errorCode === "FCM_MISMATCH") {
+                                        root.clearNotice()
+                                        if (data.fcmUid) root.fcmMismatchUid = data.fcmUid
+                                        if (data.airframeSerial) root.fcmMismatchSerial = data.airframeSerial
+                                        fcmMismatchPopup.open()
+                                    } else {
+                                        root.showNotice("err", errorMsg)
+                                    }
                                 }
                             })
                         }
@@ -176,10 +280,22 @@ Rectangle {
                             root.clearNotice()
                             authService.register(regData, function(success, data, errorMsg) {
                                 if (success) {
-                                    applicationSentPopup.open()
+                                    if (data && data.licenseReady) {
+                                        root.issuedLicenseKey = data.licenseKey || "SKYX-LIC-8820-4190-FA21"
+                                        root.licensedDroneModel = data.droneModel || regData.droneModel || "SkyX Kissan"
+                                        root.licensedDroneSerial = data.serialNumber || regData.droneSerial || "SKYX-KSN-2026-0842"
+                                        root.currentLicensedUser = regData.email
+                                        root.licenseCopied = false
+                                        root.clearNotice()
+                                        licenseReadyPopup.open()
+                                    } else {
+                                        root.clearNotice()
+                                        applicationSentPopup.open()
+                                    }
                                     root.registrationCompleted(regData)
                                 } else {
-                                    root.showNotice("err", errorMsg)
+                                    root.clearNotice()
+                                    submissionIssuePopup.open()
                                 }
                             })
                         }
@@ -227,7 +343,7 @@ Rectangle {
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        width: Math.min(parent.width - 40, 420)
+        width: Math.min(parent.width - 32, 440)
         padding: 24
 
         background: Rectangle {
@@ -238,38 +354,44 @@ Rectangle {
         }
 
         contentItem: ColumnLayout {
-            spacing: 14
+            spacing: 12
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 10
 
                 Rectangle {
-                    Layout.preferredWidth: 32
-                    Layout.preferredHeight: 32
-                    radius: 16
-                    color: PulseGCSTokens.cardTint
-                    border.color: PulseGCSTokens.accentColor(root.isOutdoor)
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 44
+                    radius: 22
+                    color: root.isOutdoor ? "rgba(0, 146, 168, 0.12)" : "rgba(47, 208, 232, 0.15)"
+                    border.color: root.isOutdoor ? "rgba(0, 146, 168, 0.3)" : "rgba(47, 208, 232, 0.35)"
                     border.width: 1
 
-                    Text {
+                    Canvas {
                         anchors.centerIn: parent
-                        text: "✓"
-                        font.family: ScreenTools.normalFontFamily
-                        font.pixelSize: 14
-                        font.bold: true
-                        color: PulseGCSTokens.accentColor(root.isOutdoor)
-                        renderType: Text.QtRendering
+                        width: 22
+                        height: 22
+                        onPaint: {
+                            var ctx = getContext("2d")
+                            ctx.reset()
+                            ctx.strokeStyle = root.isOutdoor ? "#0092A8" : "#2FD0E8"
+                            ctx.fillStyle = root.isOutdoor ? "rgba(0,146,168,0.2)" : "rgba(47,208,232,0.2)"
+                            ctx.lineWidth = 1.8
+                            ctx.lineJoin = "round"
+                            ctx.lineCap = "round"
+                            ctx.beginPath()
+                            ctx.moveTo(21, 1)
+                            ctx.lineTo(14, 21)
+                            ctx.lineTo(10, 12)
+                            ctx.lineTo(1, 8)
+                            ctx.closePath()
+                            ctx.stroke()
+                            ctx.beginPath()
+                            ctx.moveTo(21, 1)
+                            ctx.lineTo(10, 12)
+                            ctx.stroke()
+                        }
                     }
-                }
-
-                Text {
-                    text: qsTr("Application Sent to SkyX Backend")
-                    font.family: ScreenTools.normalFontFamily
-                    font.pixelSize: 15
-                    font.bold: true
-                    color: PulseGCSTokens.primaryText(root.isOutdoor)
-                    renderType: Text.QtRendering
                 }
 
                 Item { Layout.fillWidth: true }
@@ -277,7 +399,7 @@ Rectangle {
                 Text {
                     text: "✕"
                     font.family: ScreenTools.normalFontFamily
-                    font.pixelSize: 14
+                    font.pixelSize: 15
                     color: PulseGCSTokens.mutedText(root.isOutdoor)
                     renderType: Text.QtRendering
                     MouseArea {
@@ -290,91 +412,50 @@ Rectangle {
 
             Text {
                 Layout.fillWidth: true
+                text: qsTr("Application Sent to SkyX Backend")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 16
+                font.bold: true
+                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
                 text: qsTr("Your application has been received and is under review (1–2 business days).")
                 font.family: ScreenTools.normalFontFamily
-                font.pixelSize: 12
+                font.pixelSize: 13
                 font.bold: true
-                color: PulseGCSTokens.accentColor(root.isOutdoor)
+                color: root.isOutdoor ? PulseGCSTokens.outdoorAccentCore : PulseGCSTokens.accent
                 wrapMode: Text.WordWrap
                 renderType: Text.QtRendering
             }
 
-            Rectangle {
+            Text {
                 Layout.fillWidth: true
-                implicitHeight: 32
-                radius: 6
-                color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.buttonSurface
-                border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
-                border.width: 1
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 10
-                    Text {
-                        text: qsTr("Reference:")
-                        font.family: ScreenTools.normalFontFamily
-                        font.pixelSize: 11
-                        color: PulseGCSTokens.mutedText(root.isOutdoor)
-                        renderType: Text.QtRendering
-                    }
-                    Text {
-                        text: "#SKYX-REG-2026-9041"
-                        font.family: ScreenTools.fixedFontFamily
-                        font.pixelSize: 11
-                        font.bold: true
-                        color: PulseGCSTokens.accentColor(root.isOutdoor)
-                        renderType: Text.QtRendering
-                    }
-                }
+                text: qsTr("Application Reference: ") + "<font color='" + (root.isOutdoor ? "#007D93" : "#2FD0E8") + "'><b>#SKYX-REG-2026-9041</b></font>"
+                textFormat: Text.RichText
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 12
+                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                renderType: Text.QtRendering
             }
 
+            // Action Button: Clean single Go to Sign In button
             RowLayout {
                 Layout.fillWidth: true
                 Layout.topMargin: 8
-                spacing: 10
 
-                Button {
-                    id: popupDemoBtn
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    implicitHeight: 34
-                    font.family: ScreenTools.normalFontFamily
-                    font.pixelSize: 11
-                    font.bold: true
-                    text: qsTr("Explore in Demo Mode")
-
-                    contentItem: Text {
-                        text: popupDemoBtn.text
-                        font: popupDemoBtn.font
-                        color: PulseGCSTokens.primaryText(root.isOutdoor)
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        renderType: Text.QtRendering
-                    }
-
-                    background: Rectangle {
-                        radius: PulseGCSTokens.radiusButton
-                        color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
-                        border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
-                        border.width: 1
-                    }
-
-                    onClicked: {
-                        applicationSentPopup.close()
-                        root.demoModeClicked()
-                    }
-                }
+                Item { Layout.fillWidth: true }
 
                 Button {
                     id: popupSignBtn
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    implicitHeight: 34
+                    implicitHeight: 36
+                    implicitWidth: 140
                     font.family: ScreenTools.normalFontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                     font.bold: true
-                    text: qsTr("Return to Sign In")
+                    text: qsTr("Go to Sign In")
 
                     contentItem: Text {
                         text: popupSignBtn.text
@@ -394,6 +475,178 @@ Rectangle {
                     onClicked: {
                         applicationSentPopup.close()
                         root.currentView = "signin"
+                    }
+                }
+            }
+        }
+    }
+
+    // 1b. Application Submission Issue Popup (M3 Launch Status: Submission Issue)
+    Popup {
+        id: submissionIssuePopup
+        anchors.centerIn: parent
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        width: Math.min(parent.width - 32, 440)
+        padding: 24
+
+        background: Rectangle {
+            radius: PulseGCSTokens.radiusCard
+            color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
+            border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 12
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Rectangle {
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 44
+                    radius: 22
+                    color: root.isOutdoor ? PulseGCSTokens.outdoorErrBg : "rgba(239, 68, 68, 0.15)"
+                    border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : "rgba(239, 68, 68, 0.35)"
+                    border.width: 1
+
+                    Canvas {
+                        anchors.centerIn: parent
+                        width: 22
+                        height: 22
+                        onPaint: {
+                            var ctx = getContext("2d")
+                            ctx.reset()
+                            ctx.strokeStyle = "#EF4444"
+                            ctx.lineWidth = 1.8
+                            ctx.beginPath()
+                            ctx.arc(11, 11, 9, 0, 2 * Math.PI)
+                            ctx.stroke()
+                            ctx.beginPath()
+                            ctx.moveTo(11, 6)
+                            ctx.lineTo(11, 12)
+                            ctx.stroke()
+                            ctx.fillStyle = "#EF4444"
+                            ctx.beginPath()
+                            ctx.arc(11, 15.5, 1.2, 0, 2 * Math.PI)
+                            ctx.fill()
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    text: "✕"
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 15
+                    color: PulseGCSTokens.mutedText(root.isOutdoor)
+                    renderType: Text.QtRendering
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: submissionIssuePopup.close()
+                    }
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Application Sent Failure")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 16
+                font.bold: true
+                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Application was submitted, but could not reach the SkyX backend.")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 13
+                font.bold: true
+                color: "#EF4444"
+                wrapMode: Text.WordWrap
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Please check your internet connection and try submitting again. Your operator and aircraft details have been preserved.")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 12
+                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                wrapMode: Text.WordWrap
+                renderType: Text.QtRendering
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 8
+                spacing: 10
+
+                Button {
+                    id: popupFailedCloseBtn
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    implicitHeight: 34
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 11
+                    font.bold: true
+                    text: qsTr("Close")
+
+                    contentItem: Text {
+                        text: popupFailedCloseBtn.text
+                        font: popupFailedCloseBtn.font
+                        color: PulseGCSTokens.primaryText(root.isOutdoor)
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+
+                    background: Rectangle {
+                        radius: PulseGCSTokens.radiusButton
+                        color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
+                        border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
+                        border.width: 1
+                    }
+
+                    onClicked: {
+                        submissionIssuePopup.close()
+                    }
+                }
+
+                Button {
+                    id: popupRetrySubmitBtn
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    implicitHeight: 34
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 11
+                    font.bold: true
+                    text: qsTr("Retry Submission")
+
+                    contentItem: Text {
+                        text: popupRetrySubmitBtn.text
+                        font: popupRetrySubmitBtn.font
+                        color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+
+                    background: Rectangle {
+                        radius: PulseGCSTokens.radiusButton
+                        color: popupRetrySubmitBtn.pressed ? PulseGCSTokens.accentHoverColor(root.isOutdoor)
+                                                           : (root.isOutdoor ? PulseGCSTokens.outdoorAccentCore : PulseGCSTokens.accent)
+                    }
+
+                    onClicked: {
+                        submissionIssuePopup.close()
+                        root.currentView = "register"
                     }
                 }
             }
@@ -493,6 +746,784 @@ Rectangle {
                     passwordUpdatedPopup.close()
                     recoveryCard.resetFlow()
                     root.currentView = "signin"
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // 3. M3-US07: First-Login License Key Activation Modal
+    // =========================================================================
+    Popup {
+        id: licenseReadyPopup
+        anchors.centerIn: parent
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        width: Math.min(parent.width - 32, 440)
+        padding: 24
+
+        background: Rectangle {
+            radius: PulseGCSTokens.radiusCard
+            color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
+            border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 12
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Rectangle {
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 44
+                    radius: 22
+                    color: root.isOutdoor ? "#E6F4EA" : "rgba(16, 185, 129, 0.15)"
+                    border.color: root.isOutdoor ? "#34A853" : "rgba(16, 185, 129, 0.35)"
+                    border.width: 1
+
+                    Canvas {
+                        anchors.centerIn: parent
+                        width: 22
+                        height: 22
+                        onPaint: {
+                            var ctx = getContext("2d")
+                            ctx.reset()
+                            ctx.strokeStyle = root.isOutdoor ? "#0D9488" : "#10B981"
+                            ctx.lineWidth = 1.8
+                            ctx.lineCap = "round"
+                            ctx.lineJoin = "round"
+                            ctx.beginPath()
+                            ctx.arc(7, 15, 5, 0, 2 * Math.PI)
+                            ctx.stroke()
+                            ctx.beginPath()
+                            ctx.moveTo(11, 11)
+                            ctx.lineTo(20, 2)
+                            ctx.moveTo(16, 6)
+                            ctx.lineTo(19, 9)
+                            ctx.moveTo(19, 3)
+                            ctx.lineTo(21, 5)
+                            ctx.stroke()
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    text: "✕"
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 15
+                    color: PulseGCSTokens.mutedText(root.isOutdoor)
+                    renderType: Text.QtRendering
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: licenseReadyPopup.close()
+                    }
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("License Key Generated")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 16
+                font.bold: true
+                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Application approved! Your device flight license is ready.")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 13
+                font.bold: true
+                color: root.isOutdoor ? "#0D9488" : "#10B981"
+                wrapMode: Text.WordWrap
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Please copy and paste this license key for future reference.")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 12
+                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                wrapMode: Text.WordWrap
+                renderType: Text.QtRendering
+            }
+
+            // Issued License Key Card with Copy Action
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 52
+                radius: 8
+                color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.buttonSurface
+                border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    spacing: 10
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+                        Text {
+                            text: qsTr("ISSUED LICENSE KEY")
+                            font.family: ScreenTools.normalFontFamily
+                            font.pixelSize: 9
+                            font.bold: true
+                            color: PulseGCSTokens.mutedText(root.isOutdoor)
+                            renderType: Text.QtRendering
+                        }
+                        Text {
+                            text: root.issuedLicenseKey
+                            font.family: ScreenTools.fixedFontFamily
+                            font.pixelSize: 13
+                            font.bold: true
+                            color: PulseGCSTokens.accentColor(root.isOutdoor)
+                            renderType: Text.QtRendering
+                        }
+                    }
+
+                    Button {
+                        id: copyKeyBtn
+                        implicitHeight: 32
+                        implicitWidth: root.licenseCopied ? 88 : 84
+                        font.family: ScreenTools.normalFontFamily
+                        font.pixelSize: 11
+                        font.bold: true
+
+                        contentItem: Text {
+                            text: root.licenseCopied ? qsTr("✓ Copied!") : qsTr("Copy Key")
+                            font: copyKeyBtn.font
+                            color: root.licenseCopied ? (root.isOutdoor ? "#0D9488" : "#10B981") : PulseGCSTokens.primaryText(root.isOutdoor)
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            renderType: Text.QtRendering
+                        }
+
+                        background: Rectangle {
+                            radius: PulseGCSTokens.radiusButton
+                            color: root.licenseCopied ? (root.isOutdoor ? "#E6F4EA" : "rgba(16, 185, 129, 0.15)") : (root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.surfacePanel)
+                            border.color: root.licenseCopied ? (root.isOutdoor ? "#34A853" : "#10B981") : PulseGCSTokens.buttonBorderColor(root.isOutdoor)
+                            border.width: 1
+                        }
+
+                        onClicked: {
+                            root.copyToClipboard(root.issuedLicenseKey)
+                            root.licenseCopied = true
+                            copyResetTimer.restart()
+                        }
+                    }
+                }
+            }
+
+            // Reference Pill Container
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 74
+                radius: 6
+                color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.buttonSurface
+                border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
+                border.width: 1
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 4
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: qsTr("License ID:")
+                            font.family: ScreenTools.normalFontFamily
+                            font.pixelSize: 11
+                            color: PulseGCSTokens.mutedText(root.isOutdoor)
+                            renderType: Text.QtRendering
+                        }
+                        Item { Layout.fillWidth: true }
+                        Text {
+                            text: root.issuedLicenseKey
+                            font.family: ScreenTools.fixedFontFamily
+                            font.pixelSize: 11
+                            font.bold: true
+                            color: PulseGCSTokens.accentColor(root.isOutdoor)
+                            renderType: Text.QtRendering
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: qsTr("Drone Model:")
+                            font.family: ScreenTools.normalFontFamily
+                            font.pixelSize: 11
+                            color: PulseGCSTokens.mutedText(root.isOutdoor)
+                            renderType: Text.QtRendering
+                        }
+                        Item { Layout.fillWidth: true }
+                        Text {
+                            text: root.licensedDroneModel
+                            font.family: ScreenTools.normalFontFamily
+                            font.pixelSize: 11
+                            font.bold: true
+                            color: PulseGCSTokens.primaryText(root.isOutdoor)
+                            renderType: Text.QtRendering
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: qsTr("Serial Number:")
+                            font.family: ScreenTools.normalFontFamily
+                            font.pixelSize: 11
+                            color: PulseGCSTokens.mutedText(root.isOutdoor)
+                            renderType: Text.QtRendering
+                        }
+                        Item { Layout.fillWidth: true }
+                        Text {
+                            text: root.licensedDroneSerial
+                            font.family: ScreenTools.normalFontFamily
+                            font.pixelSize: 11
+                            font.bold: true
+                            color: PulseGCSTokens.primaryText(root.isOutdoor)
+                            renderType: Text.QtRendering
+                        }
+                    }
+                }
+            }
+
+            // Action Buttons
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 8
+
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    id: licenseProceedBtn
+                    implicitHeight: 36
+                    implicitWidth: 160
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 12
+                    font.bold: true
+                    text: qsTr("Proceed to Sign In ›")
+
+                    contentItem: Text {
+                        text: licenseProceedBtn.text
+                        font: licenseProceedBtn.font
+                        color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+
+                    background: Rectangle {
+                        radius: PulseGCSTokens.radiusButton
+                        color: licenseProceedBtn.pressed ? PulseGCSTokens.accentHoverColor(root.isOutdoor)
+                                                         : (root.isOutdoor ? PulseGCSTokens.outdoorAccentCore : PulseGCSTokens.accent)
+                    }
+
+                    onClicked: {
+                        licenseReadyPopup.close()
+                        root.currentView = "signin"
+                        if (root.currentLicensedUser && root.currentLicensedUser.length > 0) {
+                            signInCard.email = root.currentLicensedUser
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // 4. M3-US11: Device Suspended / Replaced (HTTP 403) Lockout Modal
+    // =========================================================================
+    Popup {
+        id: suspendedLockoutPopup
+        anchors.centerIn: parent
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        width: Math.min(parent.width - 32, 420)
+        padding: 24
+
+        background: Rectangle {
+            radius: PulseGCSTokens.radiusCard
+            color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
+            border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : PulseGCSTokens.err
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 12
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Rectangle {
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 44
+                    radius: 22
+                    color: root.isOutdoor ? PulseGCSTokens.outdoorErrBg : "rgba(239, 68, 68, 0.15)"
+                    border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : "rgba(239, 68, 68, 0.35)"
+                    border.width: 1
+
+                    Canvas {
+                        anchors.centerIn: parent
+                        width: 22
+                        height: 22
+                        onPaint: {
+                            var ctx = getContext("2d")
+                            ctx.reset()
+                            ctx.strokeStyle = root.isOutdoor ? PulseGCSTokens.outdoorErr : PulseGCSTokens.err
+                            ctx.lineWidth = 1.8
+                            ctx.lineCap = "round"
+                            ctx.beginPath()
+                            ctx.arc(11, 7, 4.5, Math.PI, 0)
+                            ctx.lineTo(15.5, 10)
+                            ctx.moveTo(6.5, 7)
+                            ctx.lineTo(6.5, 10)
+                            ctx.stroke()
+                            ctx.strokeRect(5, 10, 12, 10)
+                            ctx.fillStyle = root.isOutdoor ? PulseGCSTokens.outdoorErr : PulseGCSTokens.err
+                            ctx.beginPath()
+                            ctx.arc(11, 14, 1.5, 0, 2 * Math.PI)
+                            ctx.fill()
+                            ctx.beginPath()
+                            ctx.moveTo(11, 14)
+                            ctx.lineTo(11, 17)
+                            ctx.stroke()
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    text: "✕"
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 15
+                    color: PulseGCSTokens.mutedText(root.isOutdoor)
+                    renderType: Text.QtRendering
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: suspendedLockoutPopup.close()
+                    }
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Device Suspended")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 16
+                font.bold: true
+                color: root.isOutdoor ? PulseGCSTokens.outdoorErr : PulseGCSTokens.err
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("This device has been marked replaced or suspended by an administrator. Please sign in using an authorized device or contact SkyX support.")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 12
+                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                wrapMode: Text.WordWrap
+                renderType: Text.QtRendering
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 10
+
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    id: suspendedDismissBtn
+                    implicitHeight: 34
+                    implicitWidth: 120
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 11
+                    font.bold: true
+                    text: qsTr("Close")
+
+                    contentItem: Text {
+                        text: suspendedDismissBtn.text
+                        font: suspendedDismissBtn.font
+                        color: PulseGCSTokens.primaryText(root.isOutdoor)
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+
+                    background: Rectangle {
+                        radius: PulseGCSTokens.radiusButton
+                        color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
+                        border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
+                        border.width: 1
+                    }
+
+                    onClicked: suspendedLockoutPopup.close()
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // 5. M3-US08: 7-Day Session Vault Expired Warning Modal
+    // =========================================================================
+    Popup {
+        id: sessionExpiredPopup
+        anchors.centerIn: parent
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        width: Math.min(parent.width - 32, 420)
+        padding: 24
+
+        background: Rectangle {
+            radius: PulseGCSTokens.radiusCard
+            color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
+            border.color: root.isOutdoor ? PulseGCSTokens.outdoorWarn : PulseGCSTokens.warn
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 12
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Rectangle {
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 44
+                    radius: 22
+                    color: root.isOutdoor ? PulseGCSTokens.outdoorWarnBg : "rgba(245, 158, 11, 0.15)"
+                    border.color: root.isOutdoor ? PulseGCSTokens.outdoorWarn : "rgba(245, 158, 11, 0.35)"
+                    border.width: 1
+
+                    Canvas {
+                        anchors.centerIn: parent
+                        width: 22
+                        height: 22
+                        onPaint: {
+                            var ctx = getContext("2d")
+                            ctx.reset()
+                            ctx.strokeStyle = root.isOutdoor ? PulseGCSTokens.outdoorWarn : PulseGCSTokens.warn
+                            ctx.lineWidth = 1.8
+                            ctx.lineJoin = "round"
+                            ctx.lineCap = "round"
+                            ctx.beginPath()
+                            ctx.moveTo(11, 2)
+                            ctx.lineTo(20, 19)
+                            ctx.lineTo(2, 19)
+                            ctx.closePath()
+                            ctx.stroke()
+                            ctx.beginPath()
+                            ctx.moveTo(11, 8)
+                            ctx.lineTo(11, 13)
+                            ctx.stroke()
+                            ctx.fillStyle = root.isOutdoor ? PulseGCSTokens.outdoorWarn : PulseGCSTokens.warn
+                            ctx.beginPath()
+                            ctx.arc(11, 16.5, 1.1, 0, 2 * Math.PI)
+                            ctx.fill()
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    text: "✕"
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 15
+                    color: PulseGCSTokens.mutedText(root.isOutdoor)
+                    renderType: Text.QtRendering
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: sessionExpiredPopup.close()
+                    }
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Session Expired")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 16
+                font.bold: true
+                color: root.isOutdoor ? PulseGCSTokens.outdoorWarn : PulseGCSTokens.warn
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Your 7-day offline flight authorization has expired.")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 13
+                font.bold: true
+                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                wrapMode: Text.WordWrap
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Your 7-day offline flight authorization on this device has ended. Please sign in to renew your flight credentials.")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 11
+                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                wrapMode: Text.WordWrap
+                renderType: Text.QtRendering
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 10
+                spacing: 10
+
+                Button {
+                    id: sessionCloseBtn
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    implicitHeight: 34
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 11
+                    font.bold: true
+                    text: qsTr("Close")
+
+                    contentItem: Text {
+                        text: sessionCloseBtn.text
+                        font: sessionCloseBtn.font
+                        color: PulseGCSTokens.primaryText(root.isOutdoor)
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+
+                    background: Rectangle {
+                        radius: PulseGCSTokens.radiusButton
+                        color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
+                        border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
+                        border.width: 1
+                    }
+
+                    onClicked: sessionExpiredPopup.close()
+                }
+
+                Button {
+                    id: sessionAuthBtn
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    implicitHeight: 34
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 11
+                    font.bold: true
+                    text: qsTr("Re-Authenticate Now")
+
+                    contentItem: Text {
+                        text: sessionAuthBtn.text
+                        font: sessionAuthBtn.font
+                        color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+
+                    background: Rectangle {
+                        radius: PulseGCSTokens.radiusButton
+                        color: sessionAuthBtn.pressed ? PulseGCSTokens.accentHoverColor(root.isOutdoor)
+                                                      : (root.isOutdoor ? PulseGCSTokens.outdoorAccentCore : PulseGCSTokens.accent)
+                    }
+
+                    onClicked: {
+                        sessionExpiredPopup.close()
+                        root.currentView = "signin"
+                        root.showNotice("info", qsTr("Please enter your password to refresh your 7-day offline flight session on this device."))
+                    }
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // 6. M3-US09: FCM Silicon UID Verification Failure & Telemetry Lockout Modal
+    // =========================================================================
+    Popup {
+        id: fcmMismatchPopup
+        anchors.centerIn: parent
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        width: Math.min(parent.width - 32, 440)
+        padding: 24
+
+        background: Rectangle {
+            radius: PulseGCSTokens.radiusCard
+            color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
+            border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : PulseGCSTokens.err
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 12
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Rectangle {
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 44
+                    radius: 22
+                    color: root.isOutdoor ? PulseGCSTokens.outdoorErrBg : "rgba(239, 68, 68, 0.15)"
+                    border.color: root.isOutdoor ? PulseGCSTokens.outdoorErr : "rgba(239, 68, 68, 0.35)"
+                    border.width: 1
+
+                    Canvas {
+                        anchors.centerIn: parent
+                        width: 22
+                        height: 22
+                        onPaint: {
+                            var ctx = getContext("2d")
+                            ctx.reset()
+                            ctx.strokeStyle = root.isOutdoor ? PulseGCSTokens.outdoorErr : PulseGCSTokens.err
+                            ctx.lineWidth = 1.8
+                            ctx.beginPath()
+                            ctx.arc(11, 11, 9, 0, 2 * Math.PI)
+                            ctx.stroke()
+                            ctx.beginPath()
+                            ctx.moveTo(7, 7)
+                            ctx.lineTo(15, 15)
+                            ctx.moveTo(15, 7)
+                            ctx.lineTo(7, 15)
+                            ctx.stroke()
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    text: "✕"
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 15
+                    color: PulseGCSTokens.mutedText(root.isOutdoor)
+                    renderType: Text.QtRendering
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: fcmMismatchPopup.close()
+                    }
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("FCM UID Mismatch")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 16
+                font.bold: true
+                color: root.isOutdoor ? PulseGCSTokens.outdoorErr : PulseGCSTokens.err
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Aircraft Flight Control Module (FCM UID: %1) does not match registered airframe serial (%2). Telemetry connection aborted.")
+                          .arg(root.fcmMismatchUid)
+                          .arg(root.fcmMismatchSerial)
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 12
+                font.bold: true
+                color: root.isOutdoor ? PulseGCSTokens.outdoorErr : PulseGCSTokens.err
+                wrapMode: Text.WordWrap
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Telemetry handshake halted. The ground station will switch back to the Connect Aircraft screen.")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 11
+                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                wrapMode: Text.WordWrap
+                renderType: Text.QtRendering
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 10
+                spacing: 10
+
+                Button {
+                    id: fcmDismissBtn
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    implicitHeight: 34
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 11
+                    font.bold: true
+                    text: qsTr("Dismiss")
+
+                    contentItem: Text {
+                        text: fcmDismissBtn.text
+                        font: fcmDismissBtn.font
+                        color: PulseGCSTokens.primaryText(root.isOutdoor)
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+
+                    background: Rectangle {
+                        radius: PulseGCSTokens.radiusButton
+                        color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
+                        border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
+                        border.width: 1
+                    }
+
+                    onClicked: fcmMismatchPopup.close()
+                }
+
+                Button {
+                    id: fcmRetryBtn
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    implicitHeight: 34
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 11
+                    font.bold: true
+                    text: qsTr("Retry Connection")
+
+                    contentItem: Text {
+                        text: fcmRetryBtn.text
+                        font: fcmRetryBtn.font
+                        color: "#FFFFFF"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+
+                    background: Rectangle {
+                        radius: PulseGCSTokens.radiusButton
+                        color: fcmRetryBtn.pressed ? "#DC2626" : (root.isOutdoor ? PulseGCSTokens.outdoorErr : PulseGCSTokens.err)
+                    }
+
+                    onClicked: {
+                        fcmMismatchPopup.close()
+                        root.showNotice("info", qsTr("Retrying FCM handshake & telemetry verification..."))
+                    }
                 }
             }
         }

@@ -534,7 +534,7 @@ ColumnLayout {
                     spacing: 8
 
                     Text {
-                        text: qsTr("Bind license to this console")
+                        text: qsTr("Bind license to this device")
                         font.family: ScreenTools.normalFontFamily
                         font.pixelSize: 12
                         font.bold: true
@@ -565,7 +565,7 @@ ColumnLayout {
                 Text {
                     visible: root.showBindingHelp
                     Layout.fillWidth: true
-                    text: qsTr("PulseGCS binds each active flight license to a single operating console to ensure operational security. Device identity details are verified by SKYX Engineering.")
+                    text: qsTr("PulseGCS binds each active flight license to a single operating device to ensure operational security. Device identity details are verified by SKYX Engineering.")
                     font.family: ScreenTools.normalFontFamily
                     font.pixelSize: 10
                     color: PulseGCSTokens.mutedText(root.isOutdoor)

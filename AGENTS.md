@@ -149,6 +149,61 @@ Milestone Baseline Branch (e.g. M3-US01-US11)
 - All modifications MUST be isolated strictly to `custom/`.
 - Modifying files under upstream QGroundControl `src/` is strictly prohibited.
 
+### 3. Canonical Pull Request (PR) Protocol & Mandatory Template
+- **Multiple Focused PRs**: Do NOT combine entire milestones into one massive PR. Split milestone work into small, story-aligned, reviewable PRs.
+- **Mandatory PR Template Format**: Every PR description MUST strictly adhere to this standardized layout with short, crisp bullet points and exact test execution commands:
+```markdown
+## Description
+<!-- Short and crisp description of changes. What problem does this solve? -->
+
+## Type of Change
+- [ ] Bug fix (non-breaking change that fixes an issue)
+- [ ] New feature (non-breaking change that adds functionality)
+- [ ] Breaking change (fix or feature that would cause existing functionality to change)
+- [ ] Documentation update
+- [ ] Refactoring (no functional changes)
+- [ ] CI/Build changes
+- [ ] Other
+
+## Testing
+- [ ] Tested locally
+- [ ] Added/updated unit tests
+- [ ] Tested with simulator (SITL)
+- [ ] Tested with hardware
+
+```bash
+# Exact CLI command executed to test
+```
+*Exact test count and result (e.g. 44/44 passed with 0 failures).*
+
+### Platforms Tested
+- [ ] Linux
+- [ ] Windows
+- [ ] macOS
+- [ ] Android
+- [ ] iOS
+
+### Flight Stacks Tested
+<!-- If applicable -->
+- [ ] PX4
+- [ ] ArduPilot
+
+## Screenshots
+<!-- If applicable, add screenshots to help explain your changes -->
+
+## Checklist
+- [x] I have read the [Contribution Guidelines](CONTRIBUTING.md)
+- [x] My code follows the project's coding standards
+- [x] I have added tests that prove my fix/feature works
+- [x] New and existing unit tests pass locally
+
+## Related Issues
+Closes <User_Story_ID>
+
+---
+By submitting this pull request, I confirm that my contribution is made under the terms of the project's dual license (Apache 2.0 and GPL v3).
+```
+
 ---
 
 ## Context Ledger & Graphify Knowledge Architecture (Out of Git & Strict Token Efficiency)

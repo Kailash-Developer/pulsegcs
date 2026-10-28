@@ -176,7 +176,7 @@ ColumnLayout {
     Text {
         Layout.fillWidth: true
         Layout.topMargin: 2
-        text: qsTr("Session remains valid offline for up to 7 days on this registered console.")
+        text: qsTr("Session remains valid offline for up to 7 days on this registered device.")
         font.family: ScreenTools.normalFontFamily
         font.pixelSize: 10
         color: PulseGCSTokens.metaText(root.isOutdoor)

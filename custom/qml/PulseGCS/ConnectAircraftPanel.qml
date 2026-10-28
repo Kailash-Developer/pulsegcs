@@ -127,6 +127,184 @@ Rectangle {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // M3-US09: FCM Silicon UID Verification Failure & Telemetry Lockout
+    // -------------------------------------------------------------------------
+    property alias fcmMismatchPopup: fcmMismatchPopup
+    property string fcmMismatchUid: "1A:2B:3C:4D:5E:6F"
+    property string fcmMismatchSerial: "SKYX-KSN-2026-0842"
+    property bool isFcmMismatchActive: false
+
+    function triggerFcmMismatch(uid, serial) {
+        if (uid) fcmMismatchUid = uid
+        if (serial) fcmMismatchSerial = serial
+        isFcmMismatchActive = true
+        _statusMessage = qsTr("Aircraft Flight Control Module (FCM UID: %1) does not match registered airframe serial (%2). Telemetry connection aborted.")
+            .arg(fcmMismatchUid).arg(fcmMismatchSerial)
+        _lastFailureDetail = _statusMessage
+        _hasConnectionFailed = true
+        _hasCancelled = false
+        _hasDisconnected = false
+        fcmMismatchPopup.open()
+    }
+
+    Popup {
+        id: fcmMismatchPopup
+        anchors.centerIn: parent
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        width: Math.min(parent.width - 40, 440)
+        padding: 24
+
+        background: Rectangle {
+            radius: PulseGCSTokens.radiusCard
+            color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfacePanel
+            border.color: PulseGCSTokens.statusColor("err", root.isOutdoor)
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 12
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Rectangle {
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 44
+                    radius: 22
+                    color: root.isOutdoor ? PulseGCSTokens.outdoorErrBg : "rgba(239, 68, 68, 0.15)"
+                    border.color: PulseGCSTokens.statusColor("err", root.isOutdoor)
+                    border.width: 1
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "⛔"
+                        font.pixelSize: 18
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    text: "✕"
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 15
+                    color: PulseGCSTokens.mutedText(root.isOutdoor)
+                    renderType: Text.QtRendering
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: fcmMismatchPopup.close()
+                    }
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("FCM UID Mismatch")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 16
+                font.bold: true
+                color: PulseGCSTokens.statusColor("err", root.isOutdoor)
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Aircraft Flight Control Module (FCM UID: %1) does not match registered airframe serial (%2). Telemetry connection aborted.")
+                          .arg(root.fcmMismatchUid)
+                          .arg(root.fcmMismatchSerial)
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 12
+                font.bold: true
+                color: PulseGCSTokens.statusColor("err", root.isOutdoor)
+                wrapMode: Text.WordWrap
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Telemetry handshake halted. The ground station will switch back to the Connect Aircraft screen.")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 11
+                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                wrapMode: Text.WordWrap
+                renderType: Text.QtRendering
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 10
+                spacing: 10
+
+                Button {
+                    id: fcmPanelDismissBtn
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    implicitHeight: 34
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 11
+                    font.bold: true
+                    text: qsTr("Dismiss")
+
+                    contentItem: Text {
+                        text: fcmPanelDismissBtn.text
+                        font: fcmPanelDismissBtn.font
+                        color: PulseGCSTokens.primaryText(root.isOutdoor)
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+
+                    background: Rectangle {
+                        radius: PulseGCSTokens.radiusButton
+                        color: root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface
+                        border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
+                        border.width: 1
+                    }
+
+                    onClicked: {
+                        fcmMismatchPopup.close()
+                        root.isFcmMismatchActive = false
+                    }
+                }
+
+                Button {
+                    id: fcmPanelRetryBtn
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    implicitHeight: 34
+                    font.family: ScreenTools.normalFontFamily
+                    font.pixelSize: 11
+                    font.bold: true
+                    text: qsTr("Retry Connection")
+
+                    contentItem: Text {
+                        text: fcmPanelRetryBtn.text
+                        font: fcmPanelRetryBtn.font
+                        color: "#FFFFFF"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+
+                    background: Rectangle {
+                        radius: PulseGCSTokens.radiusButton
+                        color: fcmPanelRetryBtn.pressed ? "#DC2626" : PulseGCSTokens.statusColor("err", root.isOutdoor)
+                    }
+
+                    onClicked: {
+                        fcmMismatchPopup.close()
+                        root.isFcmMismatchActive = false
+                        root.startScan()
+                    }
+                }
+            }
+        }
+    }
+
     Timer {
         id: pairingWatchdog
         interval: 30000
@@ -220,6 +398,7 @@ Rectangle {
         && !_isBackendReconnecting
         && !_isConnected
         && (_activeVehicle === null || !_activeVehicle)
+        && !PulseGCSDemoModeManager.isDemoModeActive
     property bool _hasConnectionFailed: false
     property bool _hasCancelled: false
     property bool _hasDisconnected: false
@@ -1139,6 +1318,11 @@ Rectangle {
 
     function connectDevice(device) {
         if (!device || !device.address) {
+            return
+        }
+
+        if (device.address === "FCM_MISMATCH" || (device.name && device.name.indexOf("FCM Mismatch") !== -1)) {
+            triggerFcmMismatch()
             return
         }
 

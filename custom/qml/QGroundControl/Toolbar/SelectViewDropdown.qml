@@ -11,7 +11,7 @@ ToolIndicatorPage {
     id: root
 
     property real _toolButtonHeight: ScreenTools.defaultFontPixelHeight * 3
-    readonly property bool _isOffline: QGroundControl.multiVehicleManager.activeVehicle === null
+    readonly property bool _isOffline: !PulseGCSDemoModeManager.isDemoModeActive && (QGroundControl.multiVehicleManager.activeVehicle === null)
 
     contentComponent: Component {
         GridLayout {
@@ -25,7 +25,6 @@ ToolIndicatorPage {
                 Layout.fillWidth: true
                 text: qsTr("Fly")
                 imageResource: "/res/FlyingPaperPlane.svg"
-                visible: !_isOffline
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()

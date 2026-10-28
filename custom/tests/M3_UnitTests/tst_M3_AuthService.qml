@@ -64,7 +64,99 @@ TestCase {
     }
 
     // -------------------------------------------------------------------------
-    // 3. Registration Mock Contract
+    // 3. M3-US11: Console Suspended (HTTP 403) Mock Contract
+    // -------------------------------------------------------------------------
+    function test_signInSuspendedConsole_US11() {
+        var completed = false
+        var isSuccess = true
+        var errCode = ""
+        var errMsg = ""
+
+        authService.signIn("suspended@skyx.aero", "anypass123", function(success, data, errorMsg) {
+            completed = true
+            isSuccess = success
+            if (data) errCode = data.errorCode
+            errMsg = errorMsg
+        })
+
+        verify(completed, "Sign in responded")
+        compare(isSuccess, false, "Suspended console fails login")
+        compare(errCode, "CONSOLE_SUSPENDED", "Error code is CONSOLE_SUSPENDED")
+        verify(errMsg.indexOf("suspended by an administrator") !== -1, "Suspended message returned")
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. M3-US08: 7-Day Session Vault Expired Contract
+    // -------------------------------------------------------------------------
+    function test_signInSessionExpired_US08() {
+        var completed = false
+        var isSuccess = true
+        var errCode = ""
+        var errMsg = ""
+
+        authService.signIn("expired@skyx.aero", "anypass123", function(success, data, errorMsg) {
+            completed = true
+            isSuccess = success
+            if (data) errCode = data.errorCode
+            errMsg = errorMsg
+        })
+
+        verify(completed, "Sign in responded")
+        compare(isSuccess, false, "Expired session fails login")
+        compare(errCode, "SESSION_EXPIRED", "Error code is SESSION_EXPIRED")
+        verify(errMsg.indexOf("7-day offline flight authorization has expired") !== -1, "Expired message returned")
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. M3-US07: First-Login License Ready Contract
+    // -------------------------------------------------------------------------
+    function test_signInLicenseReady_US07() {
+        var completed = false
+        var isSuccess = false
+        var licenseReady = false
+        var key = ""
+
+        authService.signIn("license@skyx.aero", "anypass123", function(success, data, errorMsg) {
+            completed = true
+            isSuccess = success
+            if (data) {
+                licenseReady = !!data.licenseReady
+                key = data.licenseKey
+            }
+        })
+
+        verify(completed, "Sign in responded")
+        compare(isSuccess, true, "Sign in with license ready account succeeds")
+        compare(licenseReady, true, "License ready flag is true")
+        compare(key, "SKYX-LIC-8820-4190-FA21", "Issued license key matches")
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. M3-US09: FCM UID Mismatch Simulation Contract
+    // -------------------------------------------------------------------------
+    function test_signInFcmMismatch_US09() {
+        var completed = false
+        var isSuccess = true
+        var errCode = ""
+        var fcmUid = ""
+
+        authService.signIn("fcmerror@skyx.aero", "anypass123", function(success, data, errorMsg) {
+            completed = true
+            isSuccess = success
+            if (data) {
+                errCode = data.errorCode
+                fcmUid = data.fcmUid
+            }
+        })
+
+        verify(completed, "Sign in responded")
+        compare(isSuccess, false, "FCM error simulation fails login")
+        compare(errCode, "FCM_MISMATCH", "Error code is FCM_MISMATCH")
+        compare(fcmUid, "1A:2B:3C:4D:5E:6F", "Mismatched FCM UID matches")
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. Registration Mock Contract
     // -------------------------------------------------------------------------
     function test_registrationContract() {
         var completed = false

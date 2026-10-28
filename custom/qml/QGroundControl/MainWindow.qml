@@ -31,6 +31,9 @@ ApplicationWindow {
     rightPadding:  0
 
     function _isAircraftReady() {
+        if (PulseGCSDemoModeManager.isDemoModeActive) {
+            return true
+        }
         const vehicle = QGroundControl.multiVehicleManager.activeVehicle
         if (!vehicle) {
             return false
@@ -70,7 +73,7 @@ ApplicationWindow {
             showSignIn()
             return
         }
-        if (_isAircraftReady()) {
+        if (PulseGCSDemoModeManager.isDemoModeActive || _isAircraftReady()) {
             showFlyView()
         } else {
             showConnectAircraft()
@@ -207,6 +210,22 @@ ApplicationWindow {
         if (signInView) {
             signInView.visible = false
         }
+        if (PulseGCSDemoModeManager.isDemoModeActive) {
+            mainWindow._ensureDemoPlanLoaded()
+        }
+    }
+
+    function _ensureDemoPlanLoaded() {
+        if (!PulseGCSDemoModeManager.isDemoModeActive) {
+            return
+        }
+        if (!planView || !planView._planMasterController) {
+            return
+        }
+        if (!planView._planMasterController.containsItems) {
+            console.log("PulseGCS: Plan View empty in Demo Mode — loading demo mission plan.")
+            PulseGCSDemoModeManager.loadDemoMissionPlan(planView._planMasterController)
+        }
     }
 
     function showFlyView() {
@@ -258,6 +277,10 @@ ApplicationWindow {
     }
 
     function showConnectAircraft() {
+        if (PulseGCSDemoModeManager.isDemoModeActive) {
+            console.log("PulseGCS: showConnectAircraft suppressed in Demo Flight Mode")
+            return
+        }
         flyView.visible = false
         planView.visible = false
         toolDrawer.visible = false
@@ -424,23 +447,41 @@ ApplicationWindow {
         color:          QGroundControl.globalPalette.window
     }
 
+    // High-visibility, UI-independent Demo Mode Hazard Banner (M3-US10)
+    PulseGCSDemoBanner {
+        id: demoModeBanner
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        z: 10002
+    }
+
     FlyView {
         id:                     flyView
         objectName:             "mainView_fly"
-        anchors.fill:           parent
+        anchors.left:           parent.left
+        anchors.right:          parent.right
+        anchors.bottom:         parent.bottom
+        anchors.top:            demoModeBanner.visible ? demoModeBanner.bottom : parent.top
     }
 
     PlanView {
         id:             planView
         objectName:     "mainView_plan"
-        anchors.fill:   parent
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        anchors.bottom: parent.bottom
+        anchors.top:    demoModeBanner.visible ? demoModeBanner.bottom : parent.top
         visible:        false
     }
 
     ConnectAircraftPanel {
         id: connectAircraftPanel
         objectName: "pulseGcsConnectAircraftPanel"
-        anchors.fill: parent
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        anchors.bottom: parent.bottom
+        anchors.top:    demoModeBanner.visible ? demoModeBanner.bottom : parent.top
         visible: false
         z: 10000
         onClosed: mainWindow.hideConnectAircraft()
@@ -454,6 +495,18 @@ ApplicationWindow {
         }
     }
 
+    Timer {
+        id: signInSuccessTransitionTimer
+        interval: 750
+        repeat: false
+        onTriggered: {
+            mainWindow.userAuthenticated = true
+            signInView.visible = false
+            firstRunPromptManager.nextPrompt()
+            mainWindow.showConnectAircraft()
+        }
+    }
+
     PulseGCSSignInView {
         id: signInView
         objectName: "pulseGcsSignInView"
@@ -464,10 +517,7 @@ ApplicationWindow {
             if (typeof PulseGCSStartupController !== "undefined") {
                 PulseGCSStartupController.requestLandscapeOrientation()
             }
-            mainWindow.userAuthenticated = true
-            signInView.visible = false
-            firstRunPromptManager.nextPrompt()
-            mainWindow.showConnectAircraft()
+            signInSuccessTransitionTimer.restart()
         }
         onDemoModeClicked: function() {
             if (typeof PulseGCSStartupController !== "undefined") {
@@ -476,7 +526,39 @@ ApplicationWindow {
             mainWindow.userAuthenticated = true
             signInView.visible = false
             firstRunPromptManager.nextPrompt()
-            mainWindow.showConnectAircraft()
+            PulseGCSDemoModeManager.startDemoMode()
+            mainWindow.showFlyView()
+        }
+    }
+
+    // Demo Mode Lifecycle & Plan View State Preservation Handler (M3-US10)
+    Connections {
+        target: PulseGCSDemoModeManager
+        function onDemoModeStopped() {
+            if (planView && planView._planMasterController) {
+                planView._planMasterController.removeAll()
+            }
+            mainWindow.userAuthenticated = false
+            mainWindow.showSignIn()
+        }
+    }
+
+    Connections {
+        target: (planView && planView._planMasterController) ? planView._planMasterController : null
+        function onContainsItemsChanged() {
+            if (PulseGCSDemoModeManager.isDemoModeActive && planView && planView.visible && !planView._planMasterController.containsItems) {
+                console.log("PulseGCS: Plan was cleared during Demo Mode — restoring demo plan.")
+                mainWindow._ensureDemoPlanLoaded()
+            }
+        }
+    }
+
+    Connections {
+        target: QGroundControl.multiVehicleManager
+        function onActiveVehicleChanged(activeVehicle) {
+            if (activeVehicle && PulseGCSDemoModeManager.isDemoModeActive && planView && planView.visible && !planView._planMasterController.containsItems) {
+                mainWindow._ensureDemoPlanLoaded()
+            }
         }
     }
 

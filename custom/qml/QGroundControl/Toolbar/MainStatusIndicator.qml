@@ -26,7 +26,7 @@ RowLayout {
     property bool   _vtolInFWDFlight:   _activeVehicle ? _activeVehicle.vtolInFwdFlight : false
 
     function dropMainStatusIndicator() {
-        if (!_activeVehicle) {
+        if (!_activeVehicle && !PulseGCSDemoModeManager.isDemoModeActive) {
             mainWindow.showConnectAircraft()
             return
         }
@@ -70,6 +70,10 @@ RowLayout {
         }
 
         function mainStatusText() {
+            if (PulseGCSDemoModeManager.isDemoModeActive) {
+                setToolbarBGColor("#0D9488")
+                return qsTr("SIMULATED AIRCRAFT (%1)").arg(PulseGCSDemoModeManager.simulatedFlightMode)
+            }
             if (!_activeVehicle) {
                 setToolbarBGColor(qgcPal.brandingPurple)
                 return mainStatusLabel._disconnectedText

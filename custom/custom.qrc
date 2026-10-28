@@ -44,6 +44,8 @@
         <file alias="PulseGCSRegistrationCard.qml">qml/PulseGCS/PulseGCSRegistrationCard.qml</file>
         <file alias="PulseGCSRecoveryCard.qml">qml/PulseGCS/PulseGCSRecoveryCard.qml</file>
         <file alias="PulseGCSAuthService.qml">qml/PulseGCS/PulseGCSAuthService.qml</file>
+        <file alias="PulseGCSDemoModeManager.qml">qml/PulseGCS/PulseGCSDemoModeManager.qml</file>
+        <file alias="PulseGCSDemoBanner.qml">qml/PulseGCS/PulseGCSDemoBanner.qml</file>
         <file alias="qmldir">qml/PulseGCS/qmldir</file>
     </qresource>
     <qresource prefix="/Custom/qml/QGroundControl">
@@ -62,5 +64,9 @@
         <file alias="FlightMap/MapItems/QGCMapPolygonVisuals.qml">qml/QGroundControl/FlightMap/MapItems/QGCMapPolygonVisuals.qml</file>
         <file alias="LogViewer/LogViewerChart.qml">qml/QGroundControl/LogViewer/LogViewerChart.qml</file>
         <file alias="Viewer3D/Viewer3DQml/Models3D/Viewer3DVehicleItems.qml">qml/QGroundControl/Viewer3D/Viewer3DQml/Models3D/Viewer3DVehicleItems.qml</file>
+    </qresource>
+    <qresource prefix="/Custom/telemetry">
+        <file alias="demo_flight.tlog">resources/telemetry/demo_flight.tlog</file>
+        <file alias="demo_mission.plan">resources/telemetry/demo_mission.plan</file>
     </qresource>
 </RCC>

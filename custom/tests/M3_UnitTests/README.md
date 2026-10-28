@@ -16,7 +16,9 @@ custom/tests/M3_UnitTests/
 ├── tst_M3_SignIn.qml              # Sign-In card & navigation signals (M3-US01)
 ├── tst_M3_Registration.qml        # 2-Step Registration wizard & console binding (M3-US02)
 ├── tst_M3_PasswordRecovery.qml    # 3-Stage Password Recovery & cancel-loop invariants (M3-US03)
-└── tst_M3_AuthService.qml         # REST client, endpoint schemas & Mock Backend engine
+├── tst_M3_AuthService.qml         # REST client, endpoint schemas & Mock Backend engine (US07/US08/US09/US11)
+├── tst_M3_StoriesCompletion.qml   # Flow & modal tests for US07, US08, US09, US11
+└── tst_M3_DemoMode.qml            # Headless Demo Mode FSM, arming interlocks & hazard banner (M3-US10)
 ```
 
 ---
@@ -67,6 +69,21 @@ custom/tests/M3_UnitTests/
   - Sign-in failure: Returns HTTP 401 (Wrong password) or 404 (Unregistered user).
   - Registration: Generates `APP-XXXXXX` tracking ID in `pending_verification` state.
   - Password recovery: Simulates 6-digit code `849201`, issues single-use `resetToken`, and completes password update.
+
+### 6. `tst_M3_DemoMode.qml` — Isolated Demo Access & Safety Interlocks (M3-US10)
+* **UI Independence:** Simulation state and MockLink lifecycle are decoupled into `PulseGCSDemoModeManager`, allowing future FlyView and PlanView redesigns without altering demo logic.
+* **Safety & Arming Interlocks:**
+  - `allowRealHardwareArming`: Evaluates strictly to `false` when in Demo Mode.
+  - `suppressLiveScanning`: Evaluates to `true` to block physical Bluetooth and RF discovery.
+  - `canArmAircraft()`: Centralized safety check returning `false` during simulation.
+* **Hazard Banner Lifecycle:** Verifies `PulseGCSDemoBanner` visibility and dynamic height collapse upon start/stop.
+* **Idempotency & Signals:** Verifies single-emission invariants for `demoModeStarted` and `demoModeStopped`.
+
+### 7. `tst_M3_StoriesCompletion.qml` — Feature Flow Verification (US07, US08, US09, US11)
+* **M3-US07 (License Key Activation Modal):** Verifies modal opening, reference data fields (`SKYX-LIC-8820-4190-FA21`, `SkyX Kissan`, `SKYX-KSN-2026-0842`), and clipboard copy action feedback.
+* **M3-US08 (7-Day Session Vault & Expiration):** Verifies active 7-day session token grant for standard pilots and flight console entry lockout on expired session credentials (`expired@skyx.aero`).
+* **M3-US09 (FCM Silicon UID Mismatch):** Verifies telemetry connection abort and failure modal on hardware mismatch (`1A:2B:3C:4D:5E:6F` vs `SKYX-KSN-2026-0842`) across both SignInView and ConnectAircraftPanel.
+* **M3-US11 (Console Suspended Lockout):** Verifies HTTP 403 suspension simulation (`suspended@skyx.aero`), descriptive error dialog, and routing to SkyX administrative support.
 
 ---
 

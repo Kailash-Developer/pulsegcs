@@ -90,12 +90,16 @@ QtObject {
         return { valid: true, error: "" }
     }
 
-    // Console binding validation
+    // Device binding validation
     function validateConsoleBinding(bound) {
         if (!bound) {
-            return { valid: false, error: qsTr("Console binding is required for license attestation.") }
+            return { valid: false, error: qsTr("Device binding is required for license attestation.") }
         }
         return { valid: true, error: "" }
+    }
+
+    function validateDeviceBinding(bound) {
+        return validateConsoleBinding(bound)
     }
 }
 

@@ -7,6 +7,7 @@ QtObject {
     }
 
     property int globalTheme: 1
+    property bool colorGroupEnabled: true
     readonly property color window: "#12171E"
     readonly property color windowShade: "#1C242E"
     readonly property color text: "#FFFFFF"

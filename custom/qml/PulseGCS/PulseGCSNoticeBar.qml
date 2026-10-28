@@ -15,7 +15,7 @@ Rectangle {
     signal actionClicked()
 
     implicitWidth: 380
-    implicitHeight: Math.max(34, contentRow.implicitHeight + 12)
+    implicitHeight: Math.max(36, contentRow.implicitHeight + 12)
     radius: 6
 
     color: {
@@ -50,8 +50,8 @@ Rectangle {
         anchors.fill: parent
         anchors.leftMargin: 12
         anchors.rightMargin: 12
-        anchors.topMargin: 6
-        anchors.bottomMargin: 6
+        anchors.topMargin: 8
+        anchors.bottomMargin: 8
         spacing: 8
 
         Text {
@@ -61,18 +61,24 @@ Rectangle {
                 if (root.noticeType === "success" || root.noticeType === "ok") return "✓"
                 return "ℹ"
             }
+            font.family: ScreenTools.normalFontFamily
             font.pixelSize: 12
             color: root.border.color
+            Layout.alignment: Qt.AlignVCenter
             renderType: Text.QtRendering
         }
 
         Text {
+            id: msgLabel
             text: root.message
+            font.family: ScreenTools.normalFontFamily
             font.pixelSize: 11
             font.bold: true
             color: PulseGCSTokens.primaryText(root.isOutdoor)
-            elide: Text.ElideRight
+            wrapMode: Text.WordWrap
+            lineHeight: 1.25
             Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
             renderType: Text.QtRendering
         }
 

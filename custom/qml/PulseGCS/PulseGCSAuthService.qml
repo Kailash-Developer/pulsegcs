@@ -213,6 +213,14 @@ Item {
                     }
                 } else if (xhr.status === 401) {
                     callback(false, null, qsTr("Invalid credentials. Please re-enter your password."))
+                } else if (xhr.status === 403) {
+                    callback(false, {
+                        "status": "error",
+                        "code": 403,
+                        "errorCode": "CONSOLE_SUSPENDED",
+                        "title": qsTr("Device Suspended"),
+                        "message": qsTr("This device has been marked replaced or suspended by an administrator. Please sign in using an authorized device or contact SkyX support.")
+                    }, qsTr("This device has been marked replaced or suspended by an administrator. Please sign in using an authorized device or contact SkyX support."))
                 } else if (xhr.status === 404) {
                     callback(false, null, qsTr("No operator account found matching this email."))
                 } else if (xhr.status === 409) {
@@ -252,16 +260,139 @@ Item {
         var email = payload.email.toLowerCase()
         var password = payload.password
 
-        if (email.indexOf("unregistered") !== -1 || email === "notfound@skyx.aero") {
-            callback(false, null, qsTr("No operator account found matching this email."))
-            return
-        }
-        if (password === "wrongpassword" || password === "invalid123") {
-            callback(false, null, qsTr("Invalid credentials. Please re-enter your password."))
+        // M3-US11: Console Suspended / Replaced (HTTP 403) Lockout
+        if (email === "suspended@skyx.aero" || password === "suspended" || email.indexOf("suspended") !== -1) {
+            callback(false, {
+                "status": "error",
+                "code": 403,
+                "errorCode": "CONSOLE_SUSPENDED",
+                "title": qsTr("Device Suspended"),
+                "message": qsTr("This device has been marked replaced or suspended by an administrator. Please sign in using an authorized device or contact SkyX support.")
+            }, qsTr("This device has been marked replaced or suspended by an administrator. Please sign in using an authorized device or contact SkyX support."))
             return
         }
 
-        // Standard success payload
+        // M3-US08: 7-Day Session Vault Expired State
+        if (email === "expired@skyx.aero" || email.indexOf("expired") !== -1) {
+            callback(false, {
+                "status": "error",
+                "code": 401,
+                "errorCode": "SESSION_EXPIRED",
+                "title": qsTr("Session Expired"),
+                "message": qsTr("7-day offline flight authorization has expired. Re-authentication with SkyX backend required.")
+            }, qsTr("7-day offline flight authorization has expired. Re-authentication with SkyX backend required."))
+            return
+        }
+
+        // M3-Launch Status: Application Under Review (1-2 Days)
+        if (email === "review@skyx.aero" || email === "pending@skyx.aero" || email.indexOf("review") !== -1 || email.indexOf("pending") !== -1) {
+            callback(false, {
+                "status": "pending",
+                "code": 202,
+                "errorCode": "APPLICATION_UNDER_REVIEW",
+                "title": qsTr("Application Under Review"),
+                "message": qsTr("Your application has been received and is under review (1–2 business days).")
+            }, qsTr("Your application has been received and is under review (1–2 business days)."))
+            return
+        }
+
+        // M3-Launch Status: Submission Issue (Not Received / Failure)
+        if (email === "failed@skyx.aero" || email === "submissionerror@skyx.aero" || email.indexOf("failed") !== -1) {
+            callback(false, {
+                "status": "error",
+                "code": 500,
+                "errorCode": "APPLICATION_SUBMISSION_FAILED",
+                "title": qsTr("Application Sent Failure"),
+                "message": qsTr("Application was submitted, but could not reach the SkyX backend.")
+            }, qsTr("Application was submitted, but could not reach the SkyX backend."))
+            return
+        }
+
+        // M3-Alerts & Policy: Valid Account, Invalid Console (HTTP 403)
+        if (email === "unbound@skyx.aero" || email === "unauthorized@skyx.aero" || email.indexOf("unbound") !== -1) {
+            callback(false, {
+                "status": "error",
+                "code": 403,
+                "errorCode": "CONSOLE_UNBOUND",
+                "title": qsTr("Device Not Authorized"),
+                "message": qsTr("Your user account is valid, but this device is not authorized for flight operations. Contact your administrator to enroll or reassign this device.")
+            }, qsTr("Device Not Authorized: Your user account is valid, but this device is not authorized for flight operations. Contact your administrator to enroll or reassign this device."))
+            return
+        }
+
+        // M3-Alerts & Policy: Network / Server Timeout (HTTP 504)
+        if (email === "timeout@skyx.aero" || email.indexOf("timeout") !== -1) {
+            callback(false, {
+                "status": "error",
+                "code": 504,
+                "errorCode": "SERVER_TIMEOUT",
+                "title": qsTr("Server Connection Timeout"),
+                "message": qsTr("Unable to reach SkyX authentication servers. Please verify your internet connection and try again.")
+            }, qsTr("Server Connection Timeout: Unable to reach SkyX authentication servers. Please verify your internet connection and try again."))
+            return
+        }
+
+        // M3-US09: FCM Silicon UID Verification Failure Simulation
+        if (email === "fcmerror@skyx.aero" || email.indexOf("fcmerror") !== -1 || password === "fcmerror") {
+            callback(false, {
+                "status": "error",
+                "code": 422,
+                "errorCode": "FCM_MISMATCH",
+                "title": qsTr("FCM UID Mismatch"),
+                "fcmUid": "1A:2B:3C:4D:5E:6F",
+                "airframeSerial": "SKYX-KSN-2026-0842",
+                "message": qsTr("Aircraft Flight Control Module (FCM UID: 1A:2B:3C:4D:5E:6F) does not match registered airframe serial (SKYX-KSN-2026-0842). Telemetry connection aborted.")
+            }, qsTr("Aircraft Flight Control Module (FCM UID: 1A:2B:3C:4D:5E:6F) does not match registered airframe serial (SKYX-KSN-2026-0842). Telemetry connection aborted."))
+            return
+        }
+
+        // M3-US07: First-Login License Key Activation Ready
+        if (email === "license@skyx.aero" || email.indexOf("license") !== -1) {
+            var licenseData = {
+                "status": "success",
+                "licenseReady": true,
+                "token": "mock_jwt_token_lic_" + Math.random().toString(36).substring(2),
+                "licenseKey": "SKYX-LIC-8820-4190-FA21",
+                "droneModel": "SkyX Kissan",
+                "serialNumber": "SKYX-KSN-2026-0842",
+                "operator": {
+                    "id": "op_skyx_license_01",
+                    "email": payload.email,
+                    "name": "Certified Flight Operator",
+                    "role": "pilot"
+                },
+                "attestation": {
+                    "validDays": 7,
+                    "expiresAt": new Date(Date.now() + 7 * 86400 * 1000).toISOString()
+                },
+                "sessionActive": true
+            }
+            callback(true, licenseData, "")
+            return
+        }
+
+        if (email.indexOf("unregistered") !== -1 || email === "notfound@skyx.aero") {
+            callback(false, {
+                "status": "error",
+                "code": 404,
+                "errorCode": "ACCOUNT_NOT_FOUND",
+                "title": qsTr("Account Not Found"),
+                "message": qsTr("No operator account found matching this email.")
+            }, qsTr("No operator account found matching this email."))
+            return
+        }
+        if (password === "wrongpassword" || password === "invalid123" || email === "invalid@skyx.aero" || email.indexOf("invalid") !== -1) {
+            callback(false, {
+                "status": "error",
+                "code": 401,
+                "errorCode": "INVALID_CREDENTIALS",
+                "title": qsTr("Sign In Failed"),
+                "message": qsTr("Invalid credentials. Invalid user account or password. Please verify your credentials or use password recovery.")
+            }, qsTr("Invalid credentials. Invalid user account or password. Please verify your credentials or use password recovery."))
+            return
+        }
+
+        // Standard success payload (M3-US08: Active 7-day session vault)
         var responseData = {
             "status": "success",
             "token": "mock_jwt_token_" + Math.random().toString(36).substring(2),
@@ -274,7 +405,8 @@ Item {
             "attestation": {
                 "validDays": 7,
                 "expiresAt": new Date(Date.now() + 7 * 86400 * 1000).toISOString()
-            }
+            },
+            "sessionActive": true
         }
         callback(true, responseData, "")
     }
@@ -282,7 +414,24 @@ Item {
     function mockRegister(payload, callback) {
         var email = payload.email.toLowerCase()
         if (email === "duplicate@skyx.aero" || email.indexOf("exists") !== -1) {
-            callback(false, null, qsTr("An account with this email address already exists."))
+            callback(false, {
+                "status": "error",
+                "code": 409,
+                "errorCode": "ACCOUNT_EXISTS",
+                "message": qsTr("An account with this email address already exists.")
+            }, qsTr("An account with this email address already exists."))
+            return
+        }
+
+        // M3-US02: Application submission failure simulation
+        if (email === "failed@skyx.aero" || email === "submissionerror@skyx.aero" || email.indexOf("fail") !== -1) {
+            callback(false, {
+                "status": "error",
+                "code": 500,
+                "errorCode": "APPLICATION_SUBMISSION_FAILED",
+                "title": qsTr("Application Sent Failure"),
+                "message": qsTr("Application was submitted, but could not reach the SkyX backend.")
+            }, qsTr("Application was submitted, but could not reach the SkyX backend."))
             return
         }
 

@@ -17,6 +17,8 @@ TESTS=(
     "${SCRIPT_DIR}/tst_M3_Registration.qml"
     "${SCRIPT_DIR}/tst_M3_PasswordRecovery.qml"
     "${SCRIPT_DIR}/tst_M3_AuthService.qml"
+    "${SCRIPT_DIR}/tst_M3_StoriesCompletion.qml"
+    "${SCRIPT_DIR}/tst_M3_DemoMode.qml"
 )
 
 echo "======================================================================"
