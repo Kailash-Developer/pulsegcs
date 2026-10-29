@@ -294,8 +294,12 @@ Rectangle {
                                     }
                                     root.registrationCompleted(regData)
                                 } else {
-                                    root.clearNotice()
-                                    submissionIssuePopup.open()
+                                    if (data && data.errorCode === "ACCOUNT_EXISTS") {
+                                        root.showNotice("err", errorMsg)
+                                    } else {
+                                        root.clearNotice()
+                                        submissionIssuePopup.open()
+                                    }
                                 }
                             })
                         }
@@ -312,6 +316,7 @@ Rectangle {
                         visible: root.currentView === "recovery"
                         Layout.preferredHeight: visible ? -1 : 0
                         isOutdoor: root.isOutdoor
+                        authService: authService
 
                         onSignInRequested: {
                             root.clearNotice()

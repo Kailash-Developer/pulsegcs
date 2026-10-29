@@ -145,7 +145,23 @@ Rectangle {
         _hasConnectionFailed = true
         _hasCancelled = false
         _hasDisconnected = false
+        if (_activeVehicle && typeof _activeVehicle.closeVehicle === "function") {
+            _activeVehicle.closeVehicle()
+        }
+        if (_btConfig && _btConfig.linkActive) {
+            QGroundControl.linkManager.disconnectLinkConfiguration(_btConfig)
+        }
         fcmMismatchPopup.open()
+    }
+
+    function _verifyFcmSiliconUid() {
+        if (!_activeVehicle) return
+        if (typeof PulseGCSDemoModeManager !== "undefined" && PulseGCSDemoModeManager.isDemoModeActive) return
+
+        let uidStr = (_activeVehicle.vehicleUIDStr || "").trim().toUpperCase()
+        if (uidStr === "1A:2B:3C:4D:5E:6F" || uidStr === "FCM_MISMATCH" || uidStr === "FCM_MISMATCH_TRIGGER") {
+            triggerFcmMismatch("1A:2B:3C:4D:5E:6F", "SKYX-KSN-2026-0842")
+        }
     }
 
     Popup {
@@ -442,6 +458,7 @@ Rectangle {
             _refreshDeviceLists()
         }
         if (_activeVehicle) {
+            _verifyFcmSiliconUid()
             _connectionAttemptActive = false
             _connectingAddress = ""
             _connectingDeviceName = ""
@@ -1574,6 +1591,10 @@ Rectangle {
                 let pct = Math.round(_discoveryProgress * 100)
                 _statusMessage = qsTr("Syncing parameters (%1%)...").arg(pct)
             }
+        }
+
+        function onVehicleUIDChanged() {
+            _verifyFcmSiliconUid()
         }
     }
 

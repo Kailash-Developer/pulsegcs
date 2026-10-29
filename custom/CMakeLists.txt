@@ -69,6 +69,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAircraftInfo.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAircraftManager.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAircraftManager.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAuthService.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAuthService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSStartupController.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSStartupController.h
     CACHE INTERNAL "" FORCE
@@ -102,5 +104,6 @@ set(CUSTOM_QT_COMPONENTS
     Core
     Quick
     Qml
+    Network
     CACHE INTERNAL "" FORCE
 )

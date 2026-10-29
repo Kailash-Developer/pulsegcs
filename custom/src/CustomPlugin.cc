@@ -2,6 +2,7 @@
 #include "PulseGCSAircraftContract.h"
 #include "PulseGCSAircraftInfo.h"
 #include "PulseGCSAircraftManager.h"
+#include "PulseGCSAuthService.h"
 #include "PulseGCSStartupController.h"
 #include "PulseGCSThemeTokens.h"
 #include "PositionManager.h"
@@ -69,6 +70,7 @@ QQmlApplicationEngine *CustomPlugin::createQmlApplicationEngine(QObject *parent)
 
     qmlRegisterSingletonInstance("PulseGCS", 1, 0, "PulseGCSStartupController", PulseGCSStartupController::instance());
     qmlRegisterSingletonInstance("PulseGCS", 1, 0, "PulseGCSAircraftManager", PulseGCSAircraftManager::instance());
+    qmlRegisterType<PulseGCSAuthService>("PulseGCS", 1, 0, "PulseGCSAuthBackend");
     qmlRegisterUncreatableType<PulseGCSAircraftInfo>("PulseGCS", 1, 0, "PulseGCSAircraftInfo", QStringLiteral("PulseGCSAircraftInfo is uncreatable"));
     qmlRegisterUncreatableMetaObject(PulseGCS::staticMetaObject, "PulseGCS", 1, 0, "PulseGCSAircraft", QStringLiteral("PulseGCSAircraft namespace"));
 

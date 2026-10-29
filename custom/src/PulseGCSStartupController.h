@@ -39,6 +39,12 @@ public:
     Q_INVOKABLE void requestLandscapeOrientation();
     Q_INVOKABLE void copyToClipboard(const QString &text);
 
+    // M3-US08 / M3-US01 / M3-US04: Persistent 7-Day Session Vault & Device Identity
+    Q_INVOKABLE void saveSession(const QString &email, const QString &token, int validDays = 7);
+    Q_INVOKABLE QVariantMap loadSession();
+    Q_INVOKABLE void clearSession();
+    Q_INVOKABLE QString deviceId();
+
 signals:
     void activeChanged(bool active);
     void startupFinished();

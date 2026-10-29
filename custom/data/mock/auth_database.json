@@ -1,0 +1,335 @@
+{
+  "version": "2.2.0",
+  "environment": "production_fixture",
+  "description": "PulseGCS Data-Driven Relational Fixture Database (N-Account Multi-Tenancy & Error Simulation)",
+
+  "accounts": [
+    {
+      "id": "op_debug_01",
+      "email": "debug@gmail.com",
+      "name": "Certified Flight Operator",
+      "role": "pilot",
+      "organization": "SkyX Flight Ops",
+      "status": "active",
+      "license": {
+        "licenseKey": "SKYX-LIC-8820-4190-FA21",
+        "droneModel": "SkyX Kissan",
+        "serialNumber": "SKYX-KSN-2026-0842"
+      },
+      "activePasswords": {
+        "login1234": "200_OK",
+        "license1234": "200_LICENSE_READY",
+        "suspend1234": "403_CONSOLE_SUSPENDED",
+        "expired1234": "401_SESSION_EXPIRED",
+        "review1234": "202_ACCEPTED",
+        "failed1234": "500_SUBMISSION_FAILED",
+        "fcm12345": "422_FCM_MISMATCH",
+        "unbound1234": "403_CONSOLE_UNBOUND",
+        "timeout1234": "504_SERVER_TIMEOUT",
+        "FlightPass2026!": "200_OK",
+        "SkyX@2026": "200_OK"
+      }
+    },
+    {
+      "id": "op_pilot_02",
+      "email": "pilot@gmail.com",
+      "name": "Senior Field Pilot",
+      "role": "pilot",
+      "organization": "SkyX Flight Ops",
+      "status": "active",
+      "license": {
+        "licenseKey": "SKYX-LIC-9931-1024-BB19",
+        "droneModel": "SkyX Carter",
+        "serialNumber": "SKYX-CTR-2026-0102"
+      },
+      "activePasswords": {
+        "login1234": "200_OK",
+        "FlightPass2026!": "200_OK",
+        "SkyX@2026": "200_OK"
+      }
+    },
+    {
+      "id": "op_admin_03",
+      "email": "admin@gmail.com",
+      "name": "System Administrator",
+      "role": "admin",
+      "organization": "SkyX Engineering",
+      "status": "active",
+      "activePasswords": {
+        "login1234": "200_OK",
+        "AdminPass2026!": "200_OK"
+      }
+    },
+    {
+      "id": "op_legacy_pilot",
+      "email": "pilot@skyx.aero",
+      "name": "Certified Flight Operator",
+      "role": "pilot",
+      "organization": "SkyX Flight Ops",
+      "status": "active",
+      "activePasswords": {
+        "login1234": "200_OK",
+        "FlightPass2026!": "200_OK",
+        "SkyX@2026": "200_OK"
+      }
+    },
+    {
+      "id": "op_example_pilot",
+      "email": "pilot@example.com",
+      "name": "Certified Flight Operator",
+      "role": "pilot",
+      "organization": "SkyX Flight Ops",
+      "status": "active",
+      "activePasswords": {
+        "login1234": "200_OK",
+        "FlightPass2026!": "200_OK",
+        "SkyX@2026": "200_OK"
+      }
+    },
+    {
+      "id": "op_review_account",
+      "email": "review@skyx.aero",
+      "name": "Pending Applicant",
+      "role": "pilot",
+      "status": "under_review",
+      "activePasswords": {
+        "login1234": "202_ACCEPTED",
+        "FlightPass2026!": "202_ACCEPTED",
+        "anypass123": "202_ACCEPTED"
+      }
+    },
+    {
+      "id": "op_license_account",
+      "email": "license@skyx.aero",
+      "name": "Certified Flight Operator",
+      "role": "pilot",
+      "status": "license_ready",
+      "license": {
+        "licenseKey": "SKYX-LIC-8820-4190-FA21",
+        "droneModel": "SkyX Kissan",
+        "serialNumber": "SKYX-KSN-2026-0842"
+      },
+      "activePasswords": {
+        "login1234": "200_LICENSE_READY",
+        "license1234": "200_LICENSE_READY",
+        "FlightPass2026!": "200_LICENSE_READY",
+        "anypass123": "200_LICENSE_READY"
+      }
+    },
+    {
+      "id": "op_suspended_account",
+      "email": "suspended@skyx.aero",
+      "name": "Suspended Operator",
+      "role": "pilot",
+      "status": "suspended",
+      "activePasswords": {
+        "login1234": "403_CONSOLE_SUSPENDED",
+        "suspend1234": "403_CONSOLE_SUSPENDED",
+        "FlightPass2026!": "403_CONSOLE_SUSPENDED",
+        "anypass123": "403_CONSOLE_SUSPENDED"
+      }
+    },
+    {
+      "id": "op_expired_account",
+      "email": "expired@skyx.aero",
+      "name": "Expired Session Operator",
+      "role": "pilot",
+      "status": "expired",
+      "activePasswords": {
+        "login1234": "401_SESSION_EXPIRED",
+        "expired1234": "401_SESSION_EXPIRED",
+        "FlightPass2026!": "401_SESSION_EXPIRED",
+        "anypass123": "401_SESSION_EXPIRED"
+      }
+    },
+    {
+      "id": "op_failed_account",
+      "email": "failed@skyx.aero",
+      "name": "Submission Issue Operator",
+      "role": "pilot",
+      "status": "failed",
+      "activePasswords": {
+        "login1234": "500_SUBMISSION_FAILED",
+        "failed1234": "500_SUBMISSION_FAILED",
+        "FlightPass2026!": "500_SUBMISSION_FAILED",
+        "anypass123": "500_SUBMISSION_FAILED"
+      }
+    },
+    {
+      "id": "op_unbound_account",
+      "email": "unbound@skyx.aero",
+      "name": "Unbound Device Operator",
+      "role": "pilot",
+      "status": "unbound",
+      "activePasswords": {
+        "login1234": "403_CONSOLE_UNBOUND",
+        "unbound1234": "403_CONSOLE_UNBOUND",
+        "FlightPass2026!": "403_CONSOLE_UNBOUND",
+        "anypass123": "403_CONSOLE_UNBOUND"
+      }
+    },
+    {
+      "id": "op_timeout_account",
+      "email": "timeout@skyx.aero",
+      "name": "Timeout Simulator Operator",
+      "role": "pilot",
+      "status": "timeout",
+      "activePasswords": {
+        "login1234": "504_SERVER_TIMEOUT",
+        "timeout1234": "504_SERVER_TIMEOUT",
+        "FlightPass2026!": "504_SERVER_TIMEOUT",
+        "anypass123": "504_SERVER_TIMEOUT"
+      }
+    },
+    {
+      "id": "op_fcm_account",
+      "email": "fcmerror@skyx.aero",
+      "name": "FCM Error Operator",
+      "role": "pilot",
+      "status": "fcm_mismatch",
+      "activePasswords": {
+        "login1234": "422_FCM_MISMATCH",
+        "fcm12345": "422_FCM_MISMATCH",
+        "FlightPass2026!": "422_FCM_MISMATCH",
+        "anypass123": "422_FCM_MISMATCH"
+      }
+    }
+  ],
+
+  "httpTemplates": {
+    "200_OK": {
+      "httpStatus": 200,
+      "status": "success",
+      "code": 200,
+      "message": "Authentication successful"
+    },
+    "200_LICENSE_READY": {
+      "httpStatus": 200,
+      "status": "success",
+      "code": 200,
+      "licenseReady": true,
+      "message": "License generated and ready for activation"
+    },
+    "202_ACCEPTED": {
+      "httpStatus": 202,
+      "status": "pending",
+      "code": 202,
+      "errorCode": "APPLICATION_UNDER_REVIEW",
+      "title": "Application Under Review",
+      "message": "Your application has been received and is under review (1–2 business days)."
+    },
+    "400_BAD_REQUEST": {
+      "httpStatus": 400,
+      "status": "error",
+      "code": 400,
+      "errorCode": "INVALID_VERIFICATION_CODE",
+      "title": "Verification Failed",
+      "message": "Invalid verification code. Please check and try again."
+    },
+    "401_INVALID_CREDENTIALS": {
+      "httpStatus": 401,
+      "status": "error",
+      "code": 401,
+      "errorCode": "INVALID_CREDENTIALS",
+      "title": "Sign In Failed",
+      "message": "Invalid credentials. Invalid user account or password. Please verify your credentials or use password recovery."
+    },
+    "401_SESSION_EXPIRED": {
+      "httpStatus": 401,
+      "status": "error",
+      "code": 401,
+      "errorCode": "SESSION_EXPIRED",
+      "title": "Session Expired",
+      "message": "7-day offline flight authorization has expired. Re-authentication with SkyX backend required."
+    },
+    "403_CONSOLE_SUSPENDED": {
+      "httpStatus": 403,
+      "status": "error",
+      "code": 403,
+      "errorCode": "CONSOLE_SUSPENDED",
+      "title": "Device Suspended",
+      "message": "This device has been marked replaced or suspended by an administrator. Please sign in using an authorized device or contact SkyX support."
+    },
+    "403_CONSOLE_UNBOUND": {
+      "httpStatus": 403,
+      "status": "error",
+      "code": 403,
+      "errorCode": "CONSOLE_UNBOUND",
+      "title": "Device Not Authorized",
+      "message": "Your user account is valid, but this device is not authorized for flight operations. Contact your administrator to enroll or reassign this device."
+    },
+    "404_ACCOUNT_NOT_FOUND": {
+      "httpStatus": 404,
+      "status": "error",
+      "code": 404,
+      "errorCode": "ACCOUNT_NOT_FOUND",
+      "title": "Account Not Found",
+      "message": "No operator account found matching this email."
+    },
+    "409_ACCOUNT_EXISTS": {
+      "httpStatus": 409,
+      "status": "error",
+      "code": 409,
+      "errorCode": "ACCOUNT_EXISTS",
+      "title": "Account Exists",
+      "message": "An account with this email address already exists."
+    },
+    "422_FCM_MISMATCH": {
+      "httpStatus": 422,
+      "status": "error",
+      "code": 422,
+      "errorCode": "FCM_MISMATCH",
+      "title": "FCM UID Mismatch",
+      "fcmUid": "1A:2B:3C:4D:5E:6F",
+      "airframeSerial": "SKYX-KSN-2026-0842",
+      "message": "Aircraft Flight Control Module (FCM UID: 1A:2B:3C:4D:5E:6F) does not match registered airframe serial (SKYX-KSN-2026-0842). Telemetry connection aborted."
+    },
+    "500_SUBMISSION_FAILED": {
+      "httpStatus": 500,
+      "status": "error",
+      "code": 500,
+      "errorCode": "APPLICATION_SUBMISSION_FAILED",
+      "title": "Application Sent Failure",
+      "message": "Application was submitted, but could not reach the SkyX backend."
+    },
+    "504_SERVER_TIMEOUT": {
+      "httpStatus": 504,
+      "status": "error",
+      "code": 504,
+      "errorCode": "SERVER_TIMEOUT",
+      "title": "Server Connection Timeout",
+      "message": "Unable to reach SkyX authentication servers. Please verify your internet connection and try again."
+    },
+    "0_NETWORK_DISCONNECTED": {
+      "httpStatus": 0,
+      "status": "error",
+      "code": 0,
+      "errorCode": "NETWORK_UNAVAILABLE",
+      "title": "Network Unavailable",
+      "message": "Network connection failed. Verify internet link."
+    }
+  },
+
+  "registration": {
+    "triggers": {
+      "duplicate@gmail.com": "409_ACCOUNT_EXISTS",
+      "duplicate@skyx.aero": "409_ACCOUNT_EXISTS",
+      "failed@gmail.com": "500_SUBMISSION_FAILED",
+      "failed@skyx.aero": "500_SUBMISSION_FAILED",
+      "timeout@gmail.com": "504_SERVER_TIMEOUT",
+      "timeout@skyx.aero": "504_SERVER_TIMEOUT"
+    },
+    "defaultSuccessTemplate": "202_ACCEPTED"
+  },
+
+  "passwordRecovery": {
+    "validCode": "849201",
+    "expirySeconds": 300,
+    "triggers": {
+      "notfound@gmail.com": "404_ACCOUNT_NOT_FOUND",
+      "notfound@skyx.aero": "404_ACCOUNT_NOT_FOUND",
+      "timeout@gmail.com": "504_SERVER_TIMEOUT",
+      "timeout@skyx.aero": "504_SERVER_TIMEOUT"
+    }
+  }
+}

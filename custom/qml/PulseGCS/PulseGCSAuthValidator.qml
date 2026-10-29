@@ -43,7 +43,7 @@ QtObject {
     }
 
     // 6-digit recovery code validation
-    function validateRecoveryCode(code) {
+    function validateRecoveryCode(code, authoritativeCode) {
         if (!code || code.trim().length === 0) {
             return { valid: false, error: qsTr("Please enter the 6-digit verification code.") }
         }
@@ -51,8 +51,9 @@ QtObject {
         if (!/^\d{6}$/.test(trimmed)) {
             return { valid: false, error: qsTr("Verification code must be exactly 6 digits.") }
         }
-        // Authoritative verification code match for simulation testing
-        if (trimmed !== "849201") {
+        // Authoritative verification code match for simulation testing or server pre-verification
+        var expected = (typeof authoritativeCode !== "undefined") ? authoritativeCode : "849201"
+        if (expected && trimmed !== expected) {
             return { valid: false, error: qsTr("Invalid verification code. Please check and try again.") }
         }
         return { valid: true, error: "" }

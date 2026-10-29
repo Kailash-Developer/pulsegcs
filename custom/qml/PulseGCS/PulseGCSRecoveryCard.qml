@@ -15,6 +15,8 @@ ColumnLayout {
     property string recoveryCode: ""
     property string recoveryNewPw: ""
     property string recoveryConfirmPw: ""
+    property var authService: null
+    property string resetToken: ""
 
     signal signInRequested()
     signal recoveryCompleted()
@@ -26,6 +28,7 @@ ColumnLayout {
         recoveryCode = ""
         recoveryNewPw = ""
         recoveryConfirmPw = ""
+        resetToken = ""
         noticeRequested("", "")
     }
 
@@ -173,8 +176,20 @@ ColumnLayout {
                         root.noticeRequested("err", emailCheck.error)
                         return
                     }
-                    root.noticeRequested("ok", qsTr("Verification code sent to %1 (Simulated Code: 849201)").arg(root.recoveryEmail))
-                    root.recoveryStage = "code"
+                    if (root.authService) {
+                        root.authService.requestRecoveryCode(root.recoveryEmail, function(success, data, errorMsg) {
+                            if (success) {
+                                var devNotice = (root.authService.mockMode && data && data.testCode) ? (" (Test Code: " + data.testCode + ")") : ""
+                                root.noticeRequested("ok", qsTr("Verification code sent to %1%2").arg(root.recoveryEmail).arg(devNotice))
+                                root.recoveryStage = "code"
+                            } else {
+                                root.noticeRequested("err", errorMsg)
+                            }
+                        })
+                    } else {
+                        root.noticeRequested("ok", qsTr("Verification code sent to %1").arg(root.recoveryEmail))
+                        root.recoveryStage = "code"
+                    }
                 }
             }
         }
@@ -262,7 +277,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 implicitHeight: 36
                 text: root.recoveryCode
-                placeholderText: qsTr("849201")
+                placeholderText: qsTr("Enter 6-digit code")
                 placeholderTextColor: PulseGCSTokens.metaText(root.isOutdoor)
                 font.family: ScreenTools.fixedFontFamily
                 font.pixelSize: 15
@@ -306,7 +321,18 @@ ColumnLayout {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         root.recoveryCode = ""
-                        root.noticeRequested("ok", qsTr("Verification code re-sent to %1 (Simulated Code: 849201)").arg(root.recoveryEmail.length > 0 ? root.recoveryEmail : qsTr("your email address")))
+                        if (root.authService) {
+                            root.authService.requestRecoveryCode(root.recoveryEmail, function(success, data, errorMsg) {
+                                if (success) {
+                                    var devNotice = (root.authService.mockMode && data && data.testCode) ? (" (Test Code: " + data.testCode + ")") : ""
+                                    root.noticeRequested("ok", qsTr("Verification code re-sent to %1%2").arg(root.recoveryEmail).arg(devNotice))
+                                } else {
+                                    root.noticeRequested("err", errorMsg)
+                                }
+                            })
+                        } else {
+                            root.noticeRequested("ok", qsTr("Verification code re-sent to %1").arg(root.recoveryEmail.length > 0 ? root.recoveryEmail : qsTr("your email address")))
+                        }
                     }
                 }
             }
@@ -374,8 +400,20 @@ ColumnLayout {
                         root.noticeRequested("err", codeCheck.error)
                         return
                     }
-                    root.noticeRequested("", "")
-                    root.recoveryStage = "new_pw"
+                    if (root.authService) {
+                        root.authService.verifyRecoveryCode(root.recoveryEmail, root.recoveryCode, function(success, data, errorMsg) {
+                            if (success) {
+                                root.resetToken = (data && data.resetToken) ? data.resetToken : "rst_tok_local"
+                                root.noticeRequested("", "")
+                                root.recoveryStage = "new_pw"
+                            } else {
+                                root.noticeRequested("err", errorMsg)
+                            }
+                        })
+                    } else {
+                        root.noticeRequested("", "")
+                        root.recoveryStage = "new_pw"
+                    }
                 }
             }
         }
@@ -532,8 +570,19 @@ ColumnLayout {
                         root.noticeRequested("err", matchCheck.error)
                         return
                     }
-                    root.noticeRequested("", "")
-                    root.recoveryCompleted()
+                    if (root.authService) {
+                        root.authService.resetPassword(root.recoveryEmail, root.resetToken, root.recoveryNewPw, function(success, data, errorMsg) {
+                            if (success) {
+                                root.noticeRequested("", "")
+                                root.recoveryCompleted()
+                            } else {
+                                root.noticeRequested("err", errorMsg)
+                            }
+                        })
+                    } else {
+                        root.noticeRequested("", "")
+                        root.recoveryCompleted()
+                    }
                 }
             }
         }

@@ -10,9 +10,13 @@
 #endif
 
 #include <QtCore/QApplicationStatic>
+#include <QtCore/QDateTime>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
+#include <QtCore/QSettings>
 #include <QtCore/QStandardPaths>
+#include <QtCore/QSysInfo>
+#include <QtCore/QUuid>
 #include <QtGui/QClipboard>
 #include <QtGui/QGuiApplication>
 
@@ -228,4 +232,80 @@ void PulseGCSStartupController::copyToClipboard(const QString &text)
         clipboard->setText(text);
         qCDebug(PulseGCSStartupLog) << "Copied to clipboard:" << text;
     }
+}
+
+void PulseGCSStartupController::saveSession(const QString &email, const QString &token, int validDays)
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("PulseGCSAuth"));
+    settings.setValue(QStringLiteral("email"), email.trimmed());
+    settings.setValue(QStringLiteral("token"), token);
+    const QDateTime expiresAt = QDateTime::currentDateTimeUtc().addDays(validDays);
+    settings.setValue(QStringLiteral("expiresAt"), expiresAt.toString(Qt::ISODate));
+    settings.endGroup();
+    qCDebug(PulseGCSStartupLog) << "PulseGCS: Saved 7-day session for" << email << "expiring at" << expiresAt;
+}
+
+QVariantMap PulseGCSStartupController::loadSession()
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("PulseGCSAuth"));
+    const QString email = settings.value(QStringLiteral("email")).toString();
+    const QString token = settings.value(QStringLiteral("token")).toString();
+    const QString expiresStr = settings.value(QStringLiteral("expiresAt")).toString();
+    settings.endGroup();
+
+    QVariantMap res;
+    res[QStringLiteral("hasSession")] = false;
+    res[QStringLiteral("active")] = false;
+    res[QStringLiteral("expired")] = false;
+    res[QStringLiteral("email")] = email;
+    res[QStringLiteral("token")] = token;
+    res[QStringLiteral("expiresAt")] = expiresStr;
+
+    if (email.isEmpty() || token.isEmpty() || expiresStr.isEmpty()) {
+        return res;
+    }
+
+    res[QStringLiteral("hasSession")] = true;
+    const QDateTime expiresAt = QDateTime::fromString(expiresStr, Qt::ISODate);
+    if (!expiresAt.isValid()) {
+        return res;
+    }
+
+    if (QDateTime::currentDateTimeUtc() < expiresAt) {
+        res[QStringLiteral("active")] = true;
+    } else {
+        res[QStringLiteral("expired")] = true;
+    }
+    return res;
+}
+
+void PulseGCSStartupController::clearSession()
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("PulseGCSAuth"));
+    settings.remove(QStringLiteral("email"));
+    settings.remove(QStringLiteral("token"));
+    settings.remove(QStringLiteral("expiresAt"));
+    settings.endGroup();
+    qCDebug(PulseGCSStartupLog) << "PulseGCS: Cleared stored session from QSettings";
+}
+
+QString PulseGCSStartupController::deviceId()
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("PulseGCSAuth"));
+    QString devId = settings.value(QStringLiteral("deviceId")).toString();
+    if (devId.isEmpty()) {
+        const QByteArray machId = QSysInfo::machineUniqueId();
+        if (!machId.isEmpty()) {
+            devId = QStringLiteral("SKYX-DEV-") + machId.toHex().toUpper().left(12);
+        } else {
+            devId = QStringLiteral("SKYX-DEV-") + QUuid::createUuid().toString(QUuid::WithoutBraces).toUpper().left(12);
+        }
+        settings.setValue(QStringLiteral("deviceId"), devId);
+    }
+    settings.endGroup();
+    return devId;
 }

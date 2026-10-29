@@ -69,4 +69,7 @@
         <file alias="demo_flight.tlog">resources/telemetry/demo_flight.tlog</file>
         <file alias="demo_mission.plan">resources/telemetry/demo_mission.plan</file>
     </qresource>
+    <qresource prefix="/Custom/data/mock">
+        <file alias="auth_database.json">data/mock/auth_database.json</file>
+    </qresource>
 </RCC>

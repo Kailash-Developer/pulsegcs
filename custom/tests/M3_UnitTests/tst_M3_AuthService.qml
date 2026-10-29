@@ -208,5 +208,30 @@ TestCase {
         })
         compare(resetSuccess, true, "Password reset success")
     }
+
+    // -------------------------------------------------------------------------
+    // 5. Persistent Session Vault & Device Identity (M3-US08 & M3-US04)
+    // -------------------------------------------------------------------------
+    function test_sessionVaultAndDeviceId() {
+        verify(authService.deviceId.length > 0, "Device ID is non-empty")
+
+        authService.clearSession()
+        compare(authService.isSessionActive(), false, "Cleared session is not active")
+
+        authService.saveSession("testpilot@skyx.aero", "jwt_token_12345", 7)
+        compare(authService.isSessionActive(), true, "Saved session is active")
+        compare(authService.activeSessionEmail, "testpilot@skyx.aero", "Active session email matches")
+        compare(authService.activeSessionToken, "jwt_token_12345", "Active session token matches")
+
+        var saved = authService.loadSavedSession()
+        if (saved && saved.hasSession) {
+            compare(saved.email, "testpilot@skyx.aero", "Loaded session email matches")
+            compare(saved.token, "jwt_token_12345", "Loaded session token matches")
+            compare(saved.active, true, "Loaded session active flag is true")
+        }
+
+        authService.clearSession()
+        compare(authService.isSessionActive(), false, "Session cleared successfully")
+    }
 }
 

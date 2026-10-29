@@ -70,6 +70,37 @@ ApplicationWindow {
 
     function _restoreStartupView() {
         if (!userAuthenticated) {
+            if (typeof PulseGCSStartupController !== "undefined" && PulseGCSStartupController && typeof PulseGCSStartupController.loadSession === "function") {
+                var sess = PulseGCSStartupController.loadSession()
+                if (sess && sess.active) {
+                    console.log("PulseGCS: Restoring active 7-day session for:", sess.email)
+                    userAuthenticated = true
+                    if (signInView && signInView.authService) {
+                        signInView.authService.activeSessionEmail = sess.email
+                        signInView.authService.activeSessionToken = sess.token
+                        signInView.authService.activeSessionExpiresAt = sess.expiresAt
+                    }
+                    if (PulseGCSStartupController.requestLandscapeOrientation) {
+                        PulseGCSStartupController.requestLandscapeOrientation()
+                    }
+                    if (firstRunPromptManager) {
+                        firstRunPromptManager.nextPrompt()
+                    }
+                    if (PulseGCSDemoModeManager.isDemoModeActive || _isAircraftReady()) {
+                        showFlyView()
+                    } else {
+                        showConnectAircraft()
+                    }
+                    return
+                } else if (sess && sess.expired) {
+                    console.log("PulseGCS: 7-day session expired for:", sess.email)
+                    showSignIn()
+                    if (signInView) {
+                        signInView.showSessionExpiredModal()
+                    }
+                    return
+                }
+            }
             showSignIn()
             return
         }
