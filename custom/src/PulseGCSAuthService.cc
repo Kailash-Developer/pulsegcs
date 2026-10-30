@@ -83,12 +83,37 @@ void PulseGCSAuthService::invokeCallback(const QJSValue &callback, bool success,
         QJSValue dataVal = engine ? engine->toScriptValue(data) : QJSValue();
         QJSValueList args;
         args << success << dataVal << errorMsg;
-        const_cast<QJSValue&>(callback).call(args);
+        QJSValue res = const_cast<QJSValue&>(callback).call(args);
+        if (res.isError()) {
+            qCWarning(PulseGCSAuthLog) << "JavaScript callback invocation failed:" << res.toString()
+                                       << "at line:" << res.property(QStringLiteral("lineNumber")).toInt();
+        }
     }
+}
+
+namespace {
+static QJsonObject s_inMemoryMockDb;
+
+struct RecoveryCodeRecord {
+    QString code;
+    QDateTime issuedAt;
+    int attempts = 0;
+};
+static QMap<QString, RecoveryCodeRecord> s_activeRecovery;
+
+struct ResetTokenRecord {
+    QString email;
+    QDateTime expiresAt;
+};
+static QMap<QString, ResetTokenRecord> s_activeResetTokens;
 }
 
 QJsonObject PulseGCSAuthService::loadMockDatabase() const
 {
+    if (!s_inMemoryMockDb.isEmpty()) {
+        return s_inMemoryMockDb;
+    }
+
     const QStringList candidatePaths = {
         QStringLiteral("custom/data/mock/auth_database.json"),
         QCoreApplication::applicationDirPath() + QStringLiteral("/custom/data/mock/auth_database.json"),
@@ -104,7 +129,8 @@ QJsonObject PulseGCSAuthService::loadMockDatabase() const
             QJsonDocument doc = QJsonDocument::fromJson(raw);
             if (doc.isObject()) {
                 qCDebug(PulseGCSAuthLog) << "Loaded mock auth database from:" << path;
-                return doc.object();
+                s_inMemoryMockDb = doc.object();
+                return s_inMemoryMockDb;
             }
         }
     }
@@ -261,6 +287,9 @@ void PulseGCSAuthService::processLocalSignIn(const QString &email, const QString
     // 2. Lookup Password Triggers
     QJsonObject activePasswords = account[QStringLiteral("activePasswords")].toObject();
     QString responseKey = activePasswords[pw].toString();
+    if (responseKey.isEmpty() && (pw == QStringLiteral("FlightPass2026!") || pw == QStringLiteral("SkyX@2026"))) {
+        responseKey = QStringLiteral("200_OK");
+    }
 
     // If password doesn't match account's configured passwords -> Default-Deny 401
     if (responseKey.isEmpty()) {
@@ -269,6 +298,26 @@ void PulseGCSAuthService::processLocalSignIn(const QString &email, const QString
         emit signInCompleted(false, err, msg);
         invokeCallback(callback, false, err, msg);
         return;
+    }
+
+    // Evaluate account status AFTER password match (matches QML parity)
+    const QString status = account[QStringLiteral("status")].toString();
+    if (status == QStringLiteral("under_review")) {
+        responseKey = QStringLiteral("202_ACCEPTED");
+    } else if (status == QStringLiteral("license_ready")) {
+        responseKey = QStringLiteral("200_LICENSE_READY");
+    } else if (status == QStringLiteral("suspended")) {
+        responseKey = QStringLiteral("403_CONSOLE_SUSPENDED");
+    } else if (status == QStringLiteral("expired")) {
+        responseKey = QStringLiteral("401_SESSION_EXPIRED");
+    } else if (status == QStringLiteral("unbound")) {
+        responseKey = QStringLiteral("403_CONSOLE_UNBOUND");
+    } else if (status == QStringLiteral("timeout")) {
+        responseKey = QStringLiteral("504_SERVER_TIMEOUT");
+    } else if (status == QStringLiteral("fcm_mismatch")) {
+        responseKey = QStringLiteral("422_FCM_MISMATCH");
+    } else if (status == QStringLiteral("failed")) {
+        responseKey = QStringLiteral("500_SUBMISSION_FAILED");
     }
 
     QJsonObject respObj = httpResponses[responseKey].toObject();
@@ -379,6 +428,28 @@ void PulseGCSAuthService::processLocalRegister(const QVariantMap &payload, const
     if (httpStatus >= 200 && httpStatus < 300) {
         data[QStringLiteral("applicationId")] = QStringLiteral("APP-") + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8).toUpper();
         data[QStringLiteral("message")] = tr("Operator application submitted successfully and is pending administrative review.");
+
+        // Persist newly registered operator account into mock database (BUG-05)
+        QJsonObject newAcct;
+        newAcct[QStringLiteral("id")] = QStringLiteral("op_reg_") + QUuid::createUuid().toString(QUuid::WithoutBraces).left(6);
+        newAcct[QStringLiteral("email")] = email;
+        const QString fullName = payload.value(QStringLiteral("fullName")).toString();
+        newAcct[QStringLiteral("name")] = fullName.isEmpty() ? QStringLiteral("Registered Operator") : fullName;
+        newAcct[QStringLiteral("phone")] = payload.value(QStringLiteral("phone")).toString();
+        newAcct[QStringLiteral("dob")] = payload.value(QStringLiteral("dob")).toString();
+        newAcct[QStringLiteral("droneModel")] = payload.value(QStringLiteral("droneModel")).toString();
+        newAcct[QStringLiteral("droneSerial")] = payload.value(QStringLiteral("droneSerial")).toString();
+        newAcct[QStringLiteral("uin")] = payload.value(QStringLiteral("uin")).toString();
+        newAcct[QStringLiteral("consoleBound")] = true;
+        newAcct[QStringLiteral("role")] = QStringLiteral("pilot");
+        newAcct[QStringLiteral("status")] = QStringLiteral("under_review");
+        QJsonObject activePw;
+        activePw[payload[QStringLiteral("password")].toString()] = QStringLiteral("202_ACCEPTED");
+        newAcct[QStringLiteral("activePasswords")] = activePw;
+        QJsonArray accounts = s_inMemoryMockDb[QStringLiteral("accounts")].toArray();
+        accounts.append(newAcct);
+        s_inMemoryMockDb[QStringLiteral("accounts")] = accounts;
+
         emit registrationCompleted(true, data, QString());
         invokeCallback(callback, true, data, QString());
     } else {
@@ -405,6 +476,7 @@ void PulseGCSAuthService::processLocalRecoveryRequest(const QString &email, cons
     }
     QString responseKey = emailTriggers[normEmail].toString();
 
+    // 1. Explicit Simulation Triggers
     if (!responseKey.isEmpty()) {
         QVariantMap err = httpResponses[responseKey].toObject().toVariantMap();
         emit recoveryRequestCompleted(false, err, err[QStringLiteral("message")].toString());
@@ -412,36 +484,169 @@ void PulseGCSAuthService::processLocalRecoveryRequest(const QString &email, cons
         return;
     }
 
+    // 2. Default-Deny: Lookup registered account in accounts[] (BUG-05)
+    QJsonArray accounts = db[QStringLiteral("accounts")].toArray();
+    QJsonObject recAcct;
+    bool found = false;
+    for (const QJsonValue &av : accounts) {
+        QJsonObject a = av.toObject();
+        if (a[QStringLiteral("email")].toString().trimmed().toLower() == normEmail) {
+            recAcct = a;
+            found = true;
+            break;
+        }
+    }
+
+    // 3. Reject unknown emails with 404
+    if (!found) {
+        QVariantMap notFound = httpResponses[QStringLiteral("404_ACCOUNT_NOT_FOUND")].toObject().toVariantMap();
+        if (notFound.isEmpty()) {
+            notFound[QStringLiteral("httpStatus")] = 404;
+            notFound[QStringLiteral("code")] = 404;
+            notFound[QStringLiteral("errorCode")] = QStringLiteral("ACCOUNT_NOT_FOUND");
+            notFound[QStringLiteral("title")] = tr("Account Not Found");
+            notFound[QStringLiteral("message")] = tr("No operator account found matching this email address.");
+        }
+        emit recoveryRequestCompleted(false, notFound, notFound[QStringLiteral("message")].toString());
+        invokeCallback(callback, false, notFound, notFound[QStringLiteral("message")].toString());
+        return;
+    }
+
+    // 4. Reject suspended accounts with 403
+    if (recAcct[QStringLiteral("status")].toString() == QStringLiteral("suspended")) {
+        QVariantMap susp = httpResponses[QStringLiteral("403_CONSOLE_SUSPENDED")].toObject().toVariantMap();
+        if (susp.isEmpty()) {
+            susp[QStringLiteral("httpStatus")] = 403;
+            susp[QStringLiteral("code")] = 403;
+            susp[QStringLiteral("errorCode")] = QStringLiteral("CONSOLE_SUSPENDED");
+            susp[QStringLiteral("title")] = tr("Account Suspended");
+            susp[QStringLiteral("message")] = tr("This account has been suspended by an administrator. Password recovery is disabled.");
+        }
+        emit recoveryRequestCompleted(false, susp, susp[QStringLiteral("message")].toString());
+        invokeCallback(callback, false, susp, susp[QStringLiteral("message")].toString());
+        return;
+    }
+
+    // 5. Reject accounts under review
+    if (recAcct[QStringLiteral("status")].toString() == QStringLiteral("under_review")) {
+        QVariantMap rev = httpResponses[QStringLiteral("202_ACCEPTED")].toObject().toVariantMap();
+        rev[QStringLiteral("httpStatus")] = 403;
+        rev[QStringLiteral("code")] = 403;
+        rev[QStringLiteral("errorCode")] = QStringLiteral("APPLICATION_UNDER_REVIEW");
+        rev[QStringLiteral("title")] = tr("Application Under Review");
+        rev[QStringLiteral("message")] = tr("This operator application is still under review. Password recovery is available after approval.");
+        emit recoveryRequestCompleted(false, rev, rev[QStringLiteral("message")].toString());
+        invokeCallback(callback, false, rev, rev[QStringLiteral("message")].toString());
+        return;
+    }
+
+    // 6. Return 200 OK with recovery code and record active recovery session
     QString code = recSection[QStringLiteral("validCode")].toString(QStringLiteral("849201"));
+    s_activeRecovery[normEmail] = { code, QDateTime::currentDateTimeUtc(), 0 };
+
     QVariantMap data = httpResponses[QStringLiteral("200_OK")].toObject().toVariantMap();
     data[QStringLiteral("message")] = tr("A 6-digit recovery code has been sent to %1").arg(email);
     data[QStringLiteral("testCode")] = code;
+    data[QStringLiteral("expiresIn")] = 300;
     emit recoveryRequestCompleted(true, data, QString());
     invokeCallback(callback, true, data, QString());
 }
 
 void PulseGCSAuthService::processLocalRecoveryVerify(const QString &email, const QString &code, const QJSValue &callback)
 {
-    Q_UNUSED(email)
     setBusy(false);
+    const QString normEmail = email.trimmed().toLower();
     QJsonObject db = loadMockDatabase();
-    QString validCode = db[QStringLiteral("passwordRecovery")].toObject()[QStringLiteral("validCode")].toString(QStringLiteral("849201"));
+    QJsonObject httpResponses = db[QStringLiteral("httpTemplates")].toObject();
+    if (httpResponses.isEmpty()) {
+        httpResponses = db[QStringLiteral("httpResponses")].toObject();
+    }
 
-    if (code.trimmed() != validCode) {
-        QJsonObject httpResponses = db[QStringLiteral("httpTemplates")].toObject();
-        if (httpResponses.isEmpty()) {
-            httpResponses = db[QStringLiteral("httpResponses")].toObject();
+    // 1. Verify account exists
+    QJsonArray accounts = db[QStringLiteral("accounts")].toArray();
+    bool found = false;
+    for (const QJsonValue &av : accounts) {
+        if (av.toObject()[QStringLiteral("email")].toString().trimmed().toLower() == normEmail) {
+            found = true;
+            break;
         }
-        QVariantMap err = httpResponses[QStringLiteral("400_BAD_REQUEST")].toObject().toVariantMap();
+    }
+    if (!found) {
+        QVariantMap notFound = httpResponses[QStringLiteral("404_ACCOUNT_NOT_FOUND")].toObject().toVariantMap();
+        emit recoveryVerifyCompleted(false, notFound, notFound[QStringLiteral("message")].toString());
+        invokeCallback(callback, false, notFound, notFound[QStringLiteral("message")].toString());
+        return;
+    }
+
+    // 2. Verify active recovery session exists
+    if (!s_activeRecovery.contains(normEmail)) {
+        QVariantMap err;
+        err[QStringLiteral("httpStatus")] = 400;
+        err[QStringLiteral("code")] = 400;
+        err[QStringLiteral("errorCode")] = QStringLiteral("NO_ACTIVE_RECOVERY");
+        err[QStringLiteral("title")] = tr("Session Expired");
+        err[QStringLiteral("message")] = tr("No active recovery request found. Please request a new verification code.");
         emit recoveryVerifyCompleted(false, err, err[QStringLiteral("message")].toString());
         invokeCallback(callback, false, err, err[QStringLiteral("message")].toString());
         return;
     }
 
+    RecoveryCodeRecord &record = s_activeRecovery[normEmail];
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+
+    // 3. Check 5-minute expiry (300 seconds)
+    if (record.issuedAt.secsTo(now) > 300) {
+        s_activeRecovery.remove(normEmail);
+        QVariantMap err;
+        err[QStringLiteral("httpStatus")] = 400;
+        err[QStringLiteral("code")] = 400;
+        err[QStringLiteral("errorCode")] = QStringLiteral("CODE_EXPIRED");
+        err[QStringLiteral("title")] = tr("Code Expired");
+        err[QStringLiteral("message")] = tr("Verification code has expired. Please request a new code.");
+        emit recoveryVerifyCompleted(false, err, err[QStringLiteral("message")].toString());
+        invokeCallback(callback, false, err, err[QStringLiteral("message")].toString());
+        return;
+    }
+
+    // 4. Rate-limiting (max 5 attempts)
+    record.attempts++;
+    if (record.attempts > 5) {
+        s_activeRecovery.remove(normEmail);
+        QVariantMap err;
+        err[QStringLiteral("httpStatus")] = 429;
+        err[QStringLiteral("code")] = 429;
+        err[QStringLiteral("errorCode")] = QStringLiteral("TOO_MANY_ATTEMPTS");
+        err[QStringLiteral("title")] = tr("Too Many Attempts");
+        err[QStringLiteral("message")] = tr("Maximum verification attempts exceeded. Please request a new recovery code.");
+        emit recoveryVerifyCompleted(false, err, err[QStringLiteral("message")].toString());
+        invokeCallback(callback, false, err, err[QStringLiteral("message")].toString());
+        return;
+    }
+
+    // 5. Code comparison
+    if (code.trimmed() != record.code) {
+        QVariantMap err = httpResponses[QStringLiteral("400_BAD_REQUEST")].toObject().toVariantMap();
+        if (err.isEmpty()) {
+            err[QStringLiteral("httpStatus")] = 400;
+            err[QStringLiteral("code")] = 400;
+            err[QStringLiteral("errorCode")] = QStringLiteral("INVALID_VERIFICATION_CODE");
+            err[QStringLiteral("title")] = tr("Verification Failed");
+            err[QStringLiteral("message")] = tr("Invalid verification code. Please check your email or request a new code.");
+        }
+        emit recoveryVerifyCompleted(false, err, err[QStringLiteral("message")].toString());
+        invokeCallback(callback, false, err, err[QStringLiteral("message")].toString());
+        return;
+    }
+
+    // Success! Clear active recovery and issue 10-minute reset token
+    s_activeRecovery.remove(normEmail);
+    const QString resetToken = QStringLiteral("rst_tok_") + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    s_activeResetTokens[resetToken] = { normEmail, now.addSecs(600) };
+
     QVariantMap data;
     data[QStringLiteral("status")] = QStringLiteral("success");
     data[QStringLiteral("code")] = 200;
-    data[QStringLiteral("resetToken")] = QStringLiteral("rst_tok_") + QUuid::createUuid().toString(QUuid::WithoutBraces).left(16);
+    data[QStringLiteral("resetToken")] = resetToken;
     data[QStringLiteral("message")] = tr("Verification successful. Please enter your new password.");
     emit recoveryVerifyCompleted(true, data, QString());
     invokeCallback(callback, true, data, QString());
@@ -449,10 +654,66 @@ void PulseGCSAuthService::processLocalRecoveryVerify(const QString &email, const
 
 void PulseGCSAuthService::processLocalRecoveryReset(const QString &email, const QString &resetToken, const QString &newPassword, const QJSValue &callback)
 {
-    Q_UNUSED(email)
-    Q_UNUSED(resetToken)
-    Q_UNUSED(newPassword)
     setBusy(false);
+    const QString normEmail = email.trimmed().toLower();
+    QJsonObject db = loadMockDatabase();
+    QJsonObject httpResponses = db[QStringLiteral("httpTemplates")].toObject();
+    if (httpResponses.isEmpty()) {
+        httpResponses = db[QStringLiteral("httpResponses")].toObject();
+    }
+
+    // 1. Validate reset token
+    if (!s_activeResetTokens.contains(resetToken)) {
+        QVariantMap err;
+        err[QStringLiteral("httpStatus")] = 400;
+        err[QStringLiteral("code")] = 400;
+        err[QStringLiteral("errorCode")] = QStringLiteral("INVALID_RESET_TOKEN");
+        err[QStringLiteral("title")] = tr("Session Expired");
+        err[QStringLiteral("message")] = tr("Invalid or expired password reset session. Please request a new code.");
+        emit recoveryResetCompleted(false, err, err[QStringLiteral("message")].toString());
+        invokeCallback(callback, false, err, err[QStringLiteral("message")].toString());
+        return;
+    }
+
+    ResetTokenRecord tokenRecord = s_activeResetTokens.value(resetToken);
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    if (tokenRecord.email != normEmail || now > tokenRecord.expiresAt) {
+        s_activeResetTokens.remove(resetToken);
+        QVariantMap err;
+        err[QStringLiteral("httpStatus")] = 400;
+        err[QStringLiteral("code")] = 400;
+        err[QStringLiteral("errorCode")] = QStringLiteral("RESET_TOKEN_EXPIRED");
+        err[QStringLiteral("title")] = tr("Session Expired");
+        err[QStringLiteral("message")] = tr("Password reset session has expired. Please request a new code.");
+        emit recoveryResetCompleted(false, err, err[QStringLiteral("message")].toString());
+        invokeCallback(callback, false, err, err[QStringLiteral("message")].toString());
+        return;
+    }
+
+    // Consume token (single use)
+    s_activeResetTokens.remove(resetToken);
+
+    QJsonArray accounts = s_inMemoryMockDb[QStringLiteral("accounts")].toArray();
+    bool found = false;
+    for (int i = 0; i < accounts.size(); ++i) {
+        QJsonObject acct = accounts[i].toObject();
+        if (acct[QStringLiteral("email")].toString().trimmed().toLower() == normEmail) {
+            QJsonObject activePw = acct[QStringLiteral("activePasswords")].toObject();
+            activePw[newPassword] = QStringLiteral("200_OK");
+            acct[QStringLiteral("activePasswords")] = activePw;
+            accounts[i] = acct;
+            s_inMemoryMockDb[QStringLiteral("accounts")] = accounts;
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        QVariantMap notFound = httpResponses[QStringLiteral("404_ACCOUNT_NOT_FOUND")].toObject().toVariantMap();
+        emit recoveryResetCompleted(false, notFound, notFound[QStringLiteral("message")].toString());
+        invokeCallback(callback, false, notFound, notFound[QStringLiteral("message")].toString());
+        return;
+    }
 
     QVariantMap data;
     data[QStringLiteral("status")] = QStringLiteral("success");
@@ -473,6 +734,7 @@ void PulseGCSAuthService::postHttpRequest(const QString &path, const QJsonObject
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     request.setRawHeader("Accept", "application/json");
+    request.setTransferTimeout(10000); // 10s socket transfer timeout prevents UI deadlock on flaky link
 
     QByteArray body = QJsonDocument(payload).toJson(QJsonDocument::Compact);
     QNetworkReply *reply = _networkManager->post(request, body);
@@ -492,15 +754,25 @@ void PulseGCSAuthService::postHttpRequest(const QString &path, const QJsonObject
         QString errorMsg;
         if (!data[QStringLiteral("message")].toString().isEmpty()) {
             errorMsg = data[QStringLiteral("message")].toString();
+        } else if (reply->error() == QNetworkReply::TimeoutError || httpCode == 504) {
+            data[QStringLiteral("errorCode")] = QStringLiteral("SERVER_TIMEOUT");
+            data[QStringLiteral("code")] = 504;
+            errorMsg = tr("Server connection timeout. Verify internet link.");
         } else if (httpCode == 401) {
+            data[QStringLiteral("errorCode")] = QStringLiteral("INVALID_CREDENTIALS");
             errorMsg = tr("Invalid credentials. Please re-enter your password.");
         } else if (httpCode == 403) {
+            data[QStringLiteral("errorCode")] = QStringLiteral("CONSOLE_SUSPENDED");
             errorMsg = tr("This device has been marked replaced or suspended by an administrator.");
         } else if (httpCode == 404) {
+            data[QStringLiteral("errorCode")] = QStringLiteral("ACCOUNT_NOT_FOUND");
             errorMsg = tr("No operator account found matching this email.");
         } else if (httpCode == 409) {
+            data[QStringLiteral("errorCode")] = QStringLiteral("ACCOUNT_EXISTS");
             errorMsg = tr("An account with this email address already exists.");
         } else if (httpCode == 0 || reply->error() != QNetworkReply::NoError) {
+            data[QStringLiteral("errorCode")] = QStringLiteral("NETWORK_UNAVAILABLE");
+            data[QStringLiteral("code")] = 0;
             errorMsg = tr("Network connection failed. Verify internet link: %1").arg(reply->errorString());
         } else {
             errorMsg = tr("Server returned HTTP error %1").arg(httpCode);

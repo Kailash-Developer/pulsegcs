@@ -96,6 +96,12 @@ ApplicationWindow {
                     console.log("PulseGCS: 7-day session expired for:", sess.email)
                     showSignIn()
                     if (signInView) {
+                        if (signInView.signInCard && sess.email) {
+                            signInView.signInCard.email = sess.email
+                        }
+                        if (sess.clockTampered) {
+                            signInView.showNotice("err", qsTr("System clock rollback detected. Re-authentication with SkyX backend required."))
+                        }
                         signInView.showSessionExpiredModal()
                     }
                     return
@@ -566,6 +572,11 @@ ApplicationWindow {
     Connections {
         target: PulseGCSDemoModeManager
         function onDemoModeStopped() {
+            var activeVeh = QGroundControl.multiVehicleManager.activeVehicle
+            if (activeVeh) {
+                console.log("PulseGCS: Disconnecting demo active vehicle on demo exit")
+                activeVeh.closeVehicle()
+            }
             if (planView && planView._planMasterController) {
                 planView._planMasterController.removeAll()
             }

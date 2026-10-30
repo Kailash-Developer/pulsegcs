@@ -19,6 +19,7 @@ ColumnLayout {
     property string regPhone: ""
     property string regEmail: ""
     property string regPw: ""
+    property string regConfirmPw: ""
     property string regDOB: ""
     property string regDroneModel: "SkyX Kissan"
     property string regDroneSerial: ""
@@ -40,6 +41,7 @@ ColumnLayout {
         regPhone = ""
         regEmail = ""
         regPw = ""
+        regConfirmPw = ""
         regDOB = ""
         regDroneModel = "SkyX Kissan"
         regDroneSerial = ""
@@ -54,6 +56,13 @@ ColumnLayout {
                 regPwControl.clear()
             } else {
                 regPwControl.text = ""
+            }
+        }
+        if (regConfirmPwControl) {
+            if (typeof regConfirmPwControl.clear === "function") {
+                regConfirmPwControl.clear()
+            } else {
+                regConfirmPwControl.text = ""
             }
         }
         if (dobField) {
@@ -300,9 +309,24 @@ ColumnLayout {
             text: root.regPw
             helperText: qsTr("Use 8 or more characters with letters, numbers & symbols.")
             isOutdoor: root.isOutdoor
-            nextTabItem: dobField.firstFocusItem
+            nextTabItem: regConfirmPwControl.inputItem
             backTabItem: emailField
             onTextEdited: function(val) { root.regPw = val }
+        }
+
+        // Confirm Password with eye reveal
+        PulseGCSPasswordField {
+            id: regConfirmPwControl
+            Layout.fillWidth: true
+            label: qsTr("Confirm account password")
+            requiredField: true
+            placeholderText: qsTr("Re-enter your account password")
+            text: root.regConfirmPw
+            helperText: qsTr("Must match account password entered above.")
+            isOutdoor: root.isOutdoor
+            nextTabItem: dobField.firstFocusItem
+            backTabItem: regPwControl.inputItem
+            onTextEdited: function(val) { root.regConfirmPw = val }
         }
 
         // Date of Birth
@@ -323,7 +347,7 @@ ColumnLayout {
                 implicitHeight: 34
                 isOutdoor: root.isOutdoor
                 text: root.regDOB
-                previousTabItem: regPwControl.inputItem
+                previousTabItem: regConfirmPwControl.inputItem
                 nextTabItem: step1NextBtn
                 onTextChanged: root.regDOB = text
             }
@@ -403,6 +427,11 @@ ColumnLayout {
                     var pwCheck = PulseGCSAuthValidator.validatePassword(root.regPw)
                     if (!pwCheck.valid) {
                         root.noticeRequested("err", pwCheck.error)
+                        return
+                    }
+                    var pwMatchCheck = PulseGCSAuthValidator.validatePasswordMatch(root.regPw, root.regConfirmPw)
+                    if (!pwMatchCheck.valid) {
+                        root.noticeRequested("err", pwMatchCheck.error)
                         return
                     }
                     var dobCheck = PulseGCSAuthValidator.validateDOB(root.regDOB)

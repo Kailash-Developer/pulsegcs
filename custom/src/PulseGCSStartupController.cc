@@ -10,6 +10,7 @@
 #endif
 
 #include <QtCore/QApplicationStatic>
+#include <QtCore/QCryptographicHash>
 #include <QtCore/QDateTime>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
@@ -234,14 +235,54 @@ void PulseGCSStartupController::copyToClipboard(const QString &text)
     }
 }
 
+namespace {
+QByteArray obfuscateVaultToken(const QString &token, const QString &devId)
+{
+    if (token.isEmpty()) return QByteArray();
+    const QByteArray key = QCryptographicHash::hash((devId + QStringLiteral(":PulseGCS_Session_Salt_2026")).toUtf8(), QCryptographicHash::Sha256);
+    QByteArray raw = token.toUtf8();
+    const QByteArray mac = QCryptographicHash::hash(raw + key, QCryptographicHash::Sha256).left(16);
+    for (qsizetype i = 0; i < raw.size(); ++i) {
+        raw[i] = raw[i] ^ key[i % key.size()];
+    }
+    return (mac + raw).toBase64();
+}
+
+QString deobfuscateVaultToken(const QByteArray &b64, const QString &devId)
+{
+    if (b64.isEmpty()) return QString();
+    const QByteArray combined = QByteArray::fromBase64(b64);
+    if (combined.size() < 16) return QString();
+    const QByteArray mac = combined.left(16);
+    QByteArray raw = combined.mid(16);
+    const QByteArray key = QCryptographicHash::hash((devId + QStringLiteral(":PulseGCS_Session_Salt_2026")).toUtf8(), QCryptographicHash::Sha256);
+    for (qsizetype i = 0; i < raw.size(); ++i) {
+        raw[i] = raw[i] ^ key[i % key.size()];
+    }
+    const QByteArray expectedMac = QCryptographicHash::hash(raw + key, QCryptographicHash::Sha256).left(16);
+    if (mac != expectedMac) {
+        qCWarning(PulseGCSStartupLog) << "PulseGCS SECURITY: Vault token HMAC mismatch! Foreign hardware or corrupted session.";
+        return QString();
+    }
+    return QString::fromUtf8(raw);
+}
+}
+
 void PulseGCSStartupController::saveSession(const QString &email, const QString &token, int validDays)
 {
     QSettings settings;
     settings.beginGroup(QStringLiteral("PulseGCSAuth"));
     settings.setValue(QStringLiteral("email"), email.trimmed());
-    settings.setValue(QStringLiteral("token"), token);
-    const QDateTime expiresAt = QDateTime::currentDateTimeUtc().addDays(validDays);
+
+    // Obfuscate token bound to hardware deviceId (BUG-03)
+    const QString devId = deviceId();
+    settings.setValue(QStringLiteral("tokenEncrypted"), obfuscateVaultToken(token, devId));
+    settings.remove(QStringLiteral("token")); // Purge plaintext legacy storage
+
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    const QDateTime expiresAt = now.addDays(validDays);
     settings.setValue(QStringLiteral("expiresAt"), expiresAt.toString(Qt::ISODate));
+    settings.setValue(QStringLiteral("lastSeen"), now.toString(Qt::ISODate));
     settings.endGroup();
     qCDebug(PulseGCSStartupLog) << "PulseGCS: Saved 7-day session for" << email << "expiring at" << expiresAt;
 }
@@ -251,17 +292,29 @@ QVariantMap PulseGCSStartupController::loadSession()
     QSettings settings;
     settings.beginGroup(QStringLiteral("PulseGCSAuth"));
     const QString email = settings.value(QStringLiteral("email")).toString();
-    const QString token = settings.value(QStringLiteral("token")).toString();
+    const QByteArray tokenEncrypted = settings.value(QStringLiteral("tokenEncrypted")).toByteArray();
+    QString token;
+    const QString devId = deviceId();
+    if (!tokenEncrypted.isEmpty()) {
+        token = deobfuscateVaultToken(tokenEncrypted, devId);
+    } else {
+        // Fallback for migration from unencrypted legacy sessions
+        token = settings.value(QStringLiteral("token")).toString();
+    }
+
     const QString expiresStr = settings.value(QStringLiteral("expiresAt")).toString();
+    const QString lastSeenStr = settings.value(QStringLiteral("lastSeen")).toString();
     settings.endGroup();
 
     QVariantMap res;
     res[QStringLiteral("hasSession")] = false;
     res[QStringLiteral("active")] = false;
     res[QStringLiteral("expired")] = false;
+    res[QStringLiteral("clockTampered")] = false;
     res[QStringLiteral("email")] = email;
     res[QStringLiteral("token")] = token;
     res[QStringLiteral("expiresAt")] = expiresStr;
+    res[QStringLiteral("lastSeen")] = lastSeenStr;
 
     if (email.isEmpty() || token.isEmpty() || expiresStr.isEmpty()) {
         return res;
@@ -273,8 +326,24 @@ QVariantMap PulseGCSStartupController::loadSession()
         return res;
     }
 
-    if (QDateTime::currentDateTimeUtc() < expiresAt) {
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    const QDateTime lastSeen = QDateTime::fromString(lastSeenStr, Qt::ISODate);
+
+    // Clock rollback detection (BUG-02)
+    if (lastSeen.isValid() && now < lastSeen) {
+        qCWarning(PulseGCSStartupLog) << "PulseGCS SECURITY: System clock rollback detected! Current UTC:" << now << "< Last seen:" << lastSeen;
+        res[QStringLiteral("clockTampered")] = true;
+        res[QStringLiteral("active")] = false;
+        res[QStringLiteral("expired")] = true;
+        return res;
+    }
+
+    if (now < expiresAt) {
         res[QStringLiteral("active")] = true;
+        // Monotonically advance lastSeen
+        settings.beginGroup(QStringLiteral("PulseGCSAuth"));
+        settings.setValue(QStringLiteral("lastSeen"), now.toString(Qt::ISODate));
+        settings.endGroup();
     } else {
         res[QStringLiteral("expired")] = true;
     }
@@ -287,7 +356,9 @@ void PulseGCSStartupController::clearSession()
     settings.beginGroup(QStringLiteral("PulseGCSAuth"));
     settings.remove(QStringLiteral("email"));
     settings.remove(QStringLiteral("token"));
+    settings.remove(QStringLiteral("tokenEncrypted"));
     settings.remove(QStringLiteral("expiresAt"));
+    settings.remove(QStringLiteral("lastSeen"));
     settings.endGroup();
     qCDebug(PulseGCSStartupLog) << "PulseGCS: Cleared stored session from QSettings";
 }
@@ -297,14 +368,77 @@ QString PulseGCSStartupController::deviceId()
     QSettings settings;
     settings.beginGroup(QStringLiteral("PulseGCSAuth"));
     QString devId = settings.value(QStringLiteral("deviceId")).toString();
+
+    // Verify against persistent app data file in case QSettings was cleared (BUG-06)
+    const QString targetDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(targetDir);
+    const QString devIdFile = targetDir + QStringLiteral("/.skyx_device_id");
+
     if (devId.isEmpty()) {
-        const QByteArray machId = QSysInfo::machineUniqueId();
+        QFile f(devIdFile);
+        if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            devId = QString::fromUtf8(f.readAll()).trimmed();
+            f.close();
+        }
+    }
+
+    if (devId.isEmpty()) {
+        QByteArray machId = QSysInfo::machineUniqueId();
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
+        if (machId.isEmpty()) {
+            QFile midFile(QStringLiteral("/etc/machine-id"));
+            if (midFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                machId = midFile.readAll().trimmed();
+                midFile.close();
+            }
+        }
+        if (machId.isEmpty()) {
+            QFile dbusFile(QStringLiteral("/var/lib/dbus/machine-id"));
+            if (dbusFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                machId = dbusFile.readAll().trimmed();
+                dbusFile.close();
+            }
+        }
+#elif defined(Q_OS_ANDROID)
+        if (machId.isEmpty()) {
+            QJniObject activity = QNativeInterface::QAndroidApplication::context();
+            if (activity.isValid()) {
+                QJniObject contentResolver = activity.callObjectMethod("getContentResolver", "()Landroid/content/ContentResolver;");
+                if (contentResolver.isValid()) {
+                    QJniObject androidId = QJniObject::callStaticObjectMethod(
+                        "android/provider/Settings$Secure",
+                        "getString",
+                        "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;",
+                        contentResolver.object<jobject>(),
+                        QJniObject::fromString("android_id").object<jstring>()
+                    );
+                    if (androidId.isValid()) {
+                        machId = androidId.toString().toUtf8();
+                    }
+                }
+            }
+        }
+#endif
         if (!machId.isEmpty()) {
             devId = QStringLiteral("SKYX-DEV-") + machId.toHex().toUpper().left(12);
         } else {
             devId = QStringLiteral("SKYX-DEV-") + QUuid::createUuid().toString(QUuid::WithoutBraces).toUpper().left(12);
         }
+
+        // Persist to disk file so cache wiping doesn't destroy device identity
+        QFile f(devIdFile);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            f.write(devId.toUtf8());
+            f.close();
+        }
         settings.setValue(QStringLiteral("deviceId"), devId);
+    } else {
+        // Ensure disk file is in sync
+        QFile f(devIdFile);
+        if (!f.exists() && f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            f.write(devId.toUtf8());
+            f.close();
+        }
     }
     settings.endGroup();
     return devId;

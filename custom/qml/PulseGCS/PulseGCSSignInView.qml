@@ -52,6 +52,7 @@ Rectangle {
     // M3-US09: FCM Mismatch state
     property string fcmMismatchUid: "1A:2B:3C:4D:5E:6F"
     property string fcmMismatchSerial: "SKYX-KSN-2026-0842"
+    property string submittedAppRef: "#SKYX-REG-2026-9041"
 
     // Clipboard helper
     TextEdit {
@@ -127,6 +128,7 @@ Rectangle {
         }
         inlineNoticeType = type
         inlineNoticeMsg = msg
+        noticeTimer.interval = (type === "err") ? 12000 : 6000
         noticeTimer.restart()
     }
 
@@ -294,6 +296,7 @@ Rectangle {
                                         licenseReadyPopup.open()
                                     } else {
                                         root.clearNotice()
+                                        root.submittedAppRef = (data && data.applicationId) ? data.applicationId : ("#SKYX-REG-" + Math.floor(1000 + Math.random() * 9000))
                                         registrationCard.isSubmitted = true
                                         applicationSentPopup.open()
                                     }
@@ -448,7 +451,7 @@ Rectangle {
 
             Text {
                 Layout.fillWidth: true
-                text: qsTr("Application Reference: ") + "<font color='" + (root.isOutdoor ? "#007D93" : "#2FD0E8") + "'><b>#SKYX-REG-2026-9041</b></font>"
+                text: qsTr("Application Reference: ") + "<font color='" + (root.isOutdoor ? "#007D93" : "#2FD0E8") + "'><b>" + root.submittedAppRef + "</b></font>"
                 textFormat: Text.RichText
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 12
@@ -767,9 +770,13 @@ Rectangle {
                 }
 
                 onClicked: {
+                    var restoredEmail = recoveryCard.recoveryEmail
                     passwordUpdatedPopup.close()
                     recoveryCard.resetFlow()
                     root.currentView = "signin"
+                    if (restoredEmail && signInCard) {
+                        signInCard.email = restoredEmail
+                    }
                 }
             }
         }

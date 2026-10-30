@@ -18,6 +18,29 @@ ColumnLayout {
     property string recoveryConfirmPw: ""
     property var authService: null
     property string resetToken: ""
+    property int resendCooldown: 120 // 2 minutes (120 seconds)
+    readonly property string formattedCooldown: {
+        var m = Math.floor(resendCooldown / 60)
+        var s = resendCooldown % 60
+        return (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s)
+    }
+
+    Timer {
+        id: cooldownTimer
+        interval: 1000
+        repeat: true
+        running: root.recoveryStage === "code" && root.resendCooldown > 0
+        onTriggered: {
+            if (root.resendCooldown > 0) {
+                root.resendCooldown -= 1
+            }
+        }
+    }
+
+    function startResendCooldown() {
+        resendCooldown = 120
+        cooldownTimer.restart()
+    }
 
     signal signInRequested()
     signal recoveryCompleted()
@@ -30,6 +53,12 @@ ColumnLayout {
         recoveryNewPw = ""
         recoveryConfirmPw = ""
         resetToken = ""
+        resendCooldown = 120
+        cooldownTimer.stop()
+        if (recovEmailField) recovEmailField.text = ""
+        if (recovCodeField) recovCodeField.text = ""
+        if (recovNewPwField && typeof recovNewPwField.clear === "function") recovNewPwField.clear()
+        if (recovConfirmPwField && typeof recovConfirmPwField.clear === "function") recovConfirmPwField.clear()
         noticeRequested("", "")
     }
 
@@ -203,14 +232,14 @@ ColumnLayout {
                             if (success) {
                                 var devNotice = (root.authService.mockMode && data && data.testCode) ? (" (Test Code: " + data.testCode + ")") : ""
                                 root.noticeRequested("ok", qsTr("Verification code sent to %1%2").arg(root.recoveryEmail).arg(devNotice))
+                                root.startResendCooldown()
                                 root.recoveryStage = "code"
                             } else {
                                 root.noticeRequested("err", errorMsg)
                             }
                         })
                     } else {
-                        root.noticeRequested("ok", qsTr("Verification code sent to %1").arg(root.recoveryEmail))
-                        root.recoveryStage = "code"
+                        root.noticeRequested("err", qsTr("Authentication service unavailable. Please check system link."))
                     }
                 }
             }
@@ -321,9 +350,36 @@ ColumnLayout {
             }
         }
 
+        // Resend Cooldown Countdown (2 minutes)
         RowLayout {
             Layout.alignment: Qt.AlignHCenter
             spacing: 5
+            visible: root.resendCooldown > 0
+
+            Text {
+                text: qsTr("Resend code in")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 11
+                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                text: root.formattedCooldown
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 11
+                font.bold: true
+                color: PulseGCSTokens.accentColor(root.isOutdoor)
+                renderType: Text.QtRendering
+            }
+        }
+
+        // Resend Code Link (Shown once 2 minutes is done)
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            spacing: 5
+            visible: root.resendCooldown <= 0
+
             Text {
                 text: qsTr("Didn't receive code?")
                 font.family: ScreenTools.normalFontFamily
@@ -331,6 +387,7 @@ ColumnLayout {
                 color: PulseGCSTokens.mutedText(root.isOutdoor)
                 renderType: Text.QtRendering
             }
+
             Text {
                 text: qsTr("Resend Code")
                 font.family: ScreenTools.normalFontFamily
@@ -338,11 +395,13 @@ ColumnLayout {
                 font.bold: true
                 color: PulseGCSTokens.accentColor(root.isOutdoor)
                 renderType: Text.QtRendering
+
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         root.recoveryCode = ""
+                        root.startResendCooldown()
                         if (root.authService) {
                             root.authService.requestRecoveryCode(root.recoveryEmail, function(success, data, errorMsg) {
                                 if (success) {
@@ -353,7 +412,7 @@ ColumnLayout {
                                 }
                             })
                         } else {
-                            root.noticeRequested("ok", qsTr("Verification code re-sent to %1").arg(root.recoveryEmail.length > 0 ? root.recoveryEmail : qsTr("your email address")))
+                            root.noticeRequested("err", qsTr("Authentication service unavailable. Please check system link."))
                         }
                     }
                 }
@@ -454,8 +513,7 @@ ColumnLayout {
                             }
                         })
                     } else {
-                        root.noticeRequested("", "")
-                        root.recoveryStage = "new_pw"
+                        root.noticeRequested("err", qsTr("Authentication service unavailable. Please check system link."))
                     }
                 }
             }
@@ -644,8 +702,7 @@ ColumnLayout {
                             }
                         })
                     } else {
-                        root.noticeRequested("", "")
-                        root.recoveryCompleted()
+                        root.noticeRequested("err", qsTr("Authentication service unavailable. Please check system link."))
                     }
                 }
             }

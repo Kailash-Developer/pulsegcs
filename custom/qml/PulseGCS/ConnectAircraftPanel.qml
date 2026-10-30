@@ -159,8 +159,14 @@ Rectangle {
         if (typeof PulseGCSDemoModeManager !== "undefined" && PulseGCSDemoModeManager.isDemoModeActive) return
 
         let uidStr = (_activeVehicle.vehicleUIDStr || "").trim().toUpperCase()
+        if (!uidStr || uidStr === "0") {
+            // Telemetry has not arrived yet; vehicleUIDChanged listener will re-evaluate upon MAVLink reception
+            return
+        }
+
         if (uidStr === "1A:2B:3C:4D:5E:6F" || uidStr === "FCM_MISMATCH" || uidStr === "FCM_MISMATCH_TRIGGER") {
             triggerFcmMismatch("1A:2B:3C:4D:5E:6F", "SKYX-KSN-2026-0842")
+            return
         }
     }
 
@@ -1596,6 +1602,10 @@ Rectangle {
         function onVehicleUIDChanged() {
             _verifyFcmSiliconUid()
         }
+
+        function onVehicleUIDStrChanged() {
+            _verifyFcmSiliconUid()
+        }
     }
 
     Connections {
@@ -1803,6 +1813,46 @@ Rectangle {
                     } else if (_isScanAllowed) {
                         _manualScanActive = true
                         startScan()
+                    }
+                }
+            }
+
+            // Sign Out / Switch Operator Button
+            Button {
+                id: signOutBtn
+                text: qsTr("Sign Out")
+                enabled: !_isConnectingOrSyncing
+                opacity: enabled ? 1.0 : 0.4
+                implicitHeight: 32
+                font.pixelSize: 11
+                font.bold: true
+
+                contentItem: Text {
+                    text: signOutBtn.text
+                    font: signOutBtn.font
+                    color: PulseGCSTokens.primaryText(root.isOutdoor)
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    renderType: Text.QtRendering
+                }
+
+                background: Rectangle {
+                    radius: PulseGCSTokens.radiusButton
+                    color: signOutBtn.pressed ? (root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeDark : PulseGCSTokens.surfaceElevated)
+                                              : (signOutBtn.hovered ? (root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.surfaceElevated)
+                                                                 : (root.isOutdoor ? PulseGCSTokens.outdoorButtonSurface : PulseGCSTokens.buttonSurface))
+                    border.color: PulseGCSTokens.buttonBorderColor(root.isOutdoor)
+                    border.width: 1
+                }
+
+                onClicked: {
+                    stopScan()
+                    if (typeof PulseGCSStartupController !== "undefined" && PulseGCSStartupController) {
+                        PulseGCSStartupController.clearSession()
+                    }
+                    if (typeof mainWindow !== "undefined" && mainWindow) {
+                        mainWindow.userAuthenticated = false
+                        mainWindow.showSignIn()
                     }
                 }
             }

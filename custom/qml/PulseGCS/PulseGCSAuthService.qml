@@ -154,29 +154,18 @@ Item {
     // =========================================================================
     // 3. Transport Dispatcher (Strategy Pattern: Local Fixture vs Remote HTTPS)
     // =========================================================================
-    Timer {
-        id: mockLatencyTimer
-        repeat: false
-        property var pendingCallback: null
-        onTriggered: {
-            if (typeof pendingCallback === "function") {
-                var cb = pendingCallback
-                pendingCallback = null
-                cb()
-            }
-        }
-    }
-
     function dispatchRequest(method, endpoint, payload, callback) {
         if (root.transportMode === "remote_api") {
             sendRemoteHttpRequest(method, endpoint, payload, callback)
         } else {
             if (!root.disableLatencyForTesting && root.mockLatencyMs > 0) {
-                mockLatencyTimer.interval = root.mockLatencyMs
-                mockLatencyTimer.pendingCallback = function() {
+                // Bug fix (BUG-01): Create dynamic, isolated timer per request to prevent
+                // callback overwriting and permanent UI lockup during concurrent calls.
+                var timerObj = Qt.createQmlObject('import QtQuick; Timer { interval: ' + root.mockLatencyMs + '; repeat: false; running: true }', root)
+                timerObj.triggered.connect(function() {
+                    timerObj.destroy()
                     executeLocalFixtureQuery(method, endpoint, payload, callback)
-                }
-                mockLatencyTimer.restart()
+                })
             } else {
                 executeLocalFixtureQuery(method, endpoint, payload, callback)
             }
@@ -195,6 +184,13 @@ Item {
         xhr.setRequestHeader("Accept", "application/json")
         xhr.timeout = root.requestTimeoutMs
 
+        var completed = false
+        function emitDone(res) {
+            if (completed) return
+            completed = true
+            callback(res)
+        }
+
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 var responseData = {}
@@ -204,7 +200,7 @@ Item {
                     responseData = { "message": xhr.responseText || ("HTTP " + xhr.status) }
                 }
 
-                callback({
+                emitDone({
                     "status": xhr.status,
                     "statusText": xhr.statusText,
                     "data": responseData
@@ -213,7 +209,7 @@ Item {
         }
 
         xhr.ontimeout = function() {
-            callback({
+            emitDone({
                 "status": 504,
                 "statusText": "Gateway Timeout",
                 "data": {
@@ -227,7 +223,7 @@ Item {
         }
 
         xhr.onerror = function() {
-            callback({
+            emitDone({
                 "status": 0,
                 "statusText": "Network Error",
                 "data": {
@@ -243,7 +239,7 @@ Item {
         try {
             xhr.send(payload ? JSON.stringify(payload) : null)
         } catch (err) {
-            callback({
+            emitDone({
                 "status": 0,
                 "statusText": "Dispatch Error",
                 "data": { "message": qsTr("Failed to dispatch request: %1").arg(err.message) }
@@ -283,11 +279,29 @@ Item {
                 return
             }
 
-            // Invariant Gate 2: Credential & Account Status Resolution
-            var templateKey = ""
+            // Invariant Gate 2: Strict Credential Verification (Must verify password BEFORE status resolution!)
+            var isPasswordValid = false
+            var passwordResponseKey = ""
             if (account.activePasswords && account.activePasswords[reqPassword]) {
-                templateKey = account.activePasswords[reqPassword]
-            } else if (account.status === "under_review") {
+                isPasswordValid = true
+                passwordResponseKey = account.activePasswords[reqPassword]
+            } else if (reqPassword === "FlightPass2026!" || reqPassword === "SkyX@2026") {
+                isPasswordValid = true
+                passwordResponseKey = "200_OK"
+            }
+
+            // If credentials do NOT match, fail immediately with 401 (Prevent credential bypass on special status)
+            if (!isPasswordValid) {
+                var invalidCredsTemplate = (db.httpTemplates && db.httpTemplates["401_INVALID_CREDENTIALS"]) || {
+                    "httpStatus": 401, "code": 401, "errorCode": "INVALID_CREDENTIALS", "title": qsTr("Sign In Failed"), "message": qsTr("Invalid credentials. Invalid user account or password. Please verify your credentials or use password recovery.")
+                }
+                callback({ "status": 401, "data": invalidCredsTemplate })
+                return
+            }
+
+            // Invariant Gate 3: Account Status Resolution (Only evaluated for authenticated credentials)
+            var templateKey = passwordResponseKey
+            if (account.status === "under_review") {
                 templateKey = "202_ACCEPTED"
             } else if (account.status === "license_ready") {
                 templateKey = "200_LICENSE_READY"
@@ -303,17 +317,6 @@ Item {
                 templateKey = "422_FCM_MISMATCH"
             } else if (account.status === "failed") {
                 templateKey = "500_SUBMISSION_FAILED"
-            } else if (reqPassword === "FlightPass2026!" || reqPassword === "SkyX@2026") {
-                templateKey = "200_OK"
-            }
-
-            // If password doesn't match and no account status override -> Default-Deny 401
-            if (!templateKey) {
-                var invalidCredsTemplate = (db.httpTemplates && db.httpTemplates["401_INVALID_CREDENTIALS"]) || {
-                    "httpStatus": 401, "code": 401, "errorCode": "INVALID_CREDENTIALS", "title": qsTr("Sign In Failed"), "message": qsTr("Invalid credentials. Invalid user account or password. Please verify your credentials or use password recovery.")
-                }
-                callback({ "status": 401, "data": invalidCredsTemplate })
-                return
             }
 
             // Emulate template response
@@ -387,6 +390,26 @@ Item {
                 return
             }
 
+            // Persist newly registered operator account into session database fixture
+            var newAcct = {
+                "id": "op_reg_" + Math.random().toString(36).substring(2, 8),
+                "email": regEmail,
+                "name": payload.fullName || "Registered Operator",
+                "phone": payload.phone || "",
+                "dob": payload.dob || "",
+                "droneModel": payload.droneModel || "",
+                "droneSerial": payload.droneSerial || "",
+                "uin": payload.uin || "",
+                "consoleBound": true,
+                "role": "pilot",
+                "status": "under_review",
+                "activePasswords": {}
+            }
+            if (payload.password) {
+                newAcct.activePasswords[payload.password] = "202_ACCEPTED"
+            }
+            accts.push(newAcct)
+
             // Default Success: 202 Application Under Review
             var successResp = {
                 "httpStatus": 202,
@@ -407,11 +430,66 @@ Item {
             var recEmail = (payload.email || "").trim().toLowerCase()
             var recTriggers = (db.passwordRecovery && db.passwordRecovery.triggers) ? db.passwordRecovery.triggers : {}
 
+            // 1. Explicit Simulation Triggers (e.g. timeout@skyx.aero)
             var recTemplateKey = recTriggers[recEmail]
             if (recTemplateKey && db.httpTemplates && db.httpTemplates[recTemplateKey]) {
                 var recResp = db.httpTemplates[recTemplateKey]
                 callback({ "status": recResp.httpStatus || recResp.code || 400, "data": recResp })
                 return
+            }
+
+            // 2. Production Invariant Gate: Lookup registered account in accounts[]
+            var recAccount = null
+            var acctList = db.accounts || []
+            for (var k = 0; k < acctList.length; ++k) {
+                if (acctList[k].email && acctList[k].email.toLowerCase() === recEmail) {
+                    recAccount = acctList[k]
+                    break
+                }
+            }
+
+            // 3. Default-Deny: If account does not exist, reject with 404
+            if (!recAccount) {
+                var notFoundTemplate = (db.httpTemplates && db.httpTemplates["404_ACCOUNT_NOT_FOUND"]) || {
+                    "httpStatus": 404, "code": 404, "errorCode": "ACCOUNT_NOT_FOUND",
+                    "title": qsTr("Account Not Found"),
+                    "message": qsTr("No operator account found matching this email address.")
+                }
+                callback({ "status": 404, "data": notFoundTemplate })
+                return
+            }
+
+            // 4. Status Check: Suspended accounts cannot recover passwords
+            if (recAccount.status === "suspended") {
+                var suspTemplate = (db.httpTemplates && db.httpTemplates["403_CONSOLE_SUSPENDED"]) || {
+                    "httpStatus": 403, "code": 403, "errorCode": "CONSOLE_SUSPENDED",
+                    "title": qsTr("Account Suspended"),
+                    "message": qsTr("This account has been suspended by an administrator. Password recovery is disabled.")
+                }
+                callback({ "status": 403, "data": suspTemplate })
+                return
+            }
+
+            // 5. Status Check: Accounts under review cannot recover passwords yet
+            if (recAccount.status === "under_review") {
+                var underReviewTemplate = (db.httpTemplates && db.httpTemplates["202_ACCEPTED"]) || {
+                    "httpStatus": 202, "code": 202, "errorCode": "APPLICATION_UNDER_REVIEW",
+                    "title": qsTr("Application Under Review"),
+                    "message": qsTr("This operator application is still under review. Password recovery is available after approval.")
+                }
+                callback({ "status": 403, "data": underReviewTemplate })
+                return
+            }
+
+            // 6. Verified Account: Return 200 OK with test code and track active recovery session
+            if (!db._activeRecovery) {
+                db._activeRecovery = {}
+            }
+            var testCode = (db.passwordRecovery && db.passwordRecovery.validCode) ? db.passwordRecovery.validCode : "849201"
+            db._activeRecovery[recEmail] = {
+                code: testCode,
+                issuedAt: Date.now(),
+                attempts: 0
             }
 
             callback({
@@ -422,7 +500,7 @@ Item {
                     "code": 200,
                     "expiresIn": 300,
                     "codeLength": 6,
-                    "testCode": (db.passwordRecovery && db.passwordRecovery.validCode) ? db.passwordRecovery.validCode : "849201",
+                    "testCode": testCode,
                     "message": qsTr("Verification code sent to operator email.")
                 }
             })
@@ -433,15 +511,90 @@ Item {
         // Query 4: Recovery Verify (/api/v1/auth/recovery/verify-code)
         // ---------------------------------------------------------------------
         if (endpoint === root.endpoints.recoveryVerify) {
+            var verifyEmail = (payload.email || "").trim().toLowerCase()
             var inputCode = (payload.code || "").trim()
-            var authoritativeCode = (db.passwordRecovery && db.passwordRecovery.validCode) ? db.passwordRecovery.validCode : "849201"
 
-            if (inputCode !== authoritativeCode) {
+            // 1. Account existence verification
+            var verifyAccount = null
+            var verifyList = db.accounts || []
+            for (var v = 0; v < verifyList.length; ++v) {
+                if (verifyList[v].email && verifyList[v].email.toLowerCase() === verifyEmail) {
+                    verifyAccount = verifyList[v]
+                    break
+                }
+            }
+            if (!verifyAccount) {
+                var noAcctResp = (db.httpTemplates && db.httpTemplates["404_ACCOUNT_NOT_FOUND"]) || {
+                    "httpStatus": 404, "code": 404, "errorCode": "ACCOUNT_NOT_FOUND",
+                    "title": qsTr("Account Not Found"), "message": qsTr("No operator account found matching this email.")
+                }
+                callback({ "status": 404, "data": noAcctResp })
+                return
+            }
+
+            // 2. Active recovery session verification
+            if (!db._activeRecovery) {
+                db._activeRecovery = {}
+            }
+            var activeEntry = db._activeRecovery[verifyEmail]
+            if (!activeEntry) {
+                callback({
+                    "status": 400,
+                    "data": {
+                        "httpStatus": 400, "code": 400, "errorCode": "NO_ACTIVE_RECOVERY",
+                        "title": qsTr("Session Expired"), "message": qsTr("No active recovery request found. Please request a verification code.")
+                    }
+                })
+                return
+            }
+
+            // 3. Expiry Check (5-minute TTL / 300,000 ms)
+            if (Date.now() - activeEntry.issuedAt > 300000) {
+                delete db._activeRecovery[verifyEmail]
+                callback({
+                    "status": 400,
+                    "data": {
+                        "httpStatus": 400, "code": 400, "errorCode": "CODE_EXPIRED",
+                        "title": qsTr("Code Expired"), "message": qsTr("Verification code has expired (5-minute limit). Please request a new code.")
+                    }
+                })
+                return
+            }
+
+            // 4. Rate-Limiting Check (max 5 attempts)
+            activeEntry.attempts = (activeEntry.attempts || 0) + 1
+            if (activeEntry.attempts > 5) {
+                delete db._activeRecovery[verifyEmail]
+                callback({
+                    "status": 429,
+                    "data": {
+                        "httpStatus": 429, "code": 429, "errorCode": "TOO_MANY_ATTEMPTS",
+                        "title": qsTr("Too Many Attempts"), "message": qsTr("Maximum verification attempts exceeded. Please request a new recovery code.")
+                    }
+                })
+                return
+            }
+
+            // 5. Code comparison
+            if (inputCode !== activeEntry.code) {
                 var badCodeResp = (db.httpTemplates && db.httpTemplates["400_BAD_REQUEST"]) || {
-                    "httpStatus": 400, "code": 400, "errorCode": "INVALID_VERIFICATION_CODE", "message": "Invalid verification code."
+                    "httpStatus": 400, "code": 400, "errorCode": "INVALID_VERIFICATION_CODE",
+                    "title": qsTr("Verification Failed"), "message": qsTr("Invalid verification code. Please check your email or request a new code.")
                 }
                 callback({ "status": 400, "data": badCodeResp })
                 return
+            }
+
+            // Success! Invalidate recovery entry and generate single-use 10-minute reset token
+            delete db._activeRecovery[verifyEmail]
+            if (!db._activeResetTokens) {
+                db._activeResetTokens = {}
+            }
+            var tokenStr = "rst_tok_" + Math.random().toString(36).substring(2, 14) + Date.now().toString(36)
+            db._activeResetTokens[tokenStr] = {
+                email: verifyEmail,
+                expiresAt: Date.now() + 600000,
+                used: false
             }
 
             callback({
@@ -450,7 +603,7 @@ Item {
                     "httpStatus": 200,
                     "status": "success",
                     "code": 200,
-                    "resetToken": "rst_tok_" + Math.random().toString(36).substring(2, 14),
+                    "resetToken": tokenStr,
                     "message": qsTr("Code verified successfully.")
                 }
             })
@@ -461,6 +614,69 @@ Item {
         // Query 5: Recovery Reset (/api/v1/auth/recovery/reset-password)
         // ---------------------------------------------------------------------
         if (endpoint === root.endpoints.recoveryReset) {
+            var resetEmail = (payload.email || "").trim().toLowerCase()
+            var newPw = payload.newPassword || ""
+            var token = payload.resetToken || ""
+
+            if (!token || token.length === 0) {
+                callback({
+                    "status": 400,
+                    "data": {
+                        "httpStatus": 400, "code": 400, "errorCode": "INVALID_RESET_TOKEN",
+                        "title": qsTr("Session Expired"), "message": qsTr("Invalid or expired password reset session. Please request a new code.")
+                    }
+                })
+                return
+            }
+
+            // Validate token against live registry
+            if (!db._activeResetTokens) {
+                db._activeResetTokens = {}
+            }
+            var tokenEntry = db._activeResetTokens[token]
+            if (!tokenEntry || tokenEntry.used || tokenEntry.email !== resetEmail || Date.now() > tokenEntry.expiresAt) {
+                delete db._activeResetTokens[token]
+                callback({
+                    "status": 400,
+                    "data": {
+                        "httpStatus": 400, "code": 400, "errorCode": "INVALID_RESET_TOKEN",
+                        "title": qsTr("Session Expired"), "message": qsTr("Password reset session has expired or is invalid. Please request a new code.")
+                    }
+                })
+                return
+            }
+
+            // Consume token immediately (single use!)
+            tokenEntry.used = true
+            delete db._activeResetTokens[token]
+
+            // Find account and update activePasswords in the live database fixture
+            var targetAcct = null
+            var allAccts = db.accounts || []
+            for (var m = 0; m < allAccts.length; ++m) {
+                if (allAccts[m].email && allAccts[m].email.toLowerCase() === resetEmail) {
+                    targetAcct = allAccts[m]
+                    break
+                }
+            }
+
+            if (!targetAcct) {
+                callback({
+                    "status": 404,
+                    "data": {
+                        "httpStatus": 404, "code": 404, "errorCode": "ACCOUNT_NOT_FOUND",
+                        "title": qsTr("Account Not Found"), "message": qsTr("No operator account found matching this email.")
+                    }
+                })
+                return
+            }
+
+            if (!targetAcct.activePasswords) {
+                targetAcct.activePasswords = {}
+            }
+            // Store the new password with 200_OK status so operator can immediately sign in!
+            targetAcct.activePasswords[newPw] = "200_OK"
+
             callback({
                 "status": 200,
                 "data": {
@@ -517,13 +733,16 @@ Item {
     property string activeSessionEmail: ""
     property string activeSessionToken: ""
     property string activeSessionExpiresAt: ""
+    property string activeSessionLastSeen: ""
 
     function saveSession(email, token, validDays) {
         activeSessionEmail = email || ""
         activeSessionToken = token || ""
         var days = (validDays !== undefined && validDays > 0) ? validDays : 7
-        var expiry = new Date(Date.now() + days * 86400 * 1000).toISOString()
+        var now = new Date()
+        var expiry = new Date(now.getTime() + days * 86400 * 1000).toISOString()
         activeSessionExpiresAt = expiry
+        activeSessionLastSeen = now.toISOString()
         if (typeof PulseGCSStartupController !== "undefined" && PulseGCSStartupController && typeof PulseGCSStartupController.saveSession === "function") {
             PulseGCSStartupController.saveSession(activeSessionEmail, activeSessionToken, days)
         }
@@ -532,13 +751,24 @@ Item {
     function isSessionActive() {
         if (!activeSessionToken || activeSessionToken.length === 0) return false
         if (!activeSessionExpiresAt || activeSessionExpiresAt.length === 0) return false
-        return new Date(activeSessionExpiresAt) > new Date()
+
+        var now = new Date()
+        // Clock rollback detection: fail-closed if clock is moved before last seen
+        if (activeSessionLastSeen && activeSessionLastSeen.length > 0) {
+            var lastSeenDate = new Date(activeSessionLastSeen)
+            if (now < lastSeenDate) {
+                console.warn("PulseGCSAuthService: Clock rollback detected! Rejecting active session.")
+                return false
+            }
+        }
+        return new Date(activeSessionExpiresAt) > now
     }
 
     function clearSession() {
         activeSessionEmail = ""
         activeSessionToken = ""
         activeSessionExpiresAt = ""
+        activeSessionLastSeen = ""
         if (typeof PulseGCSStartupController !== "undefined" && PulseGCSStartupController && typeof PulseGCSStartupController.clearSession === "function") {
             PulseGCSStartupController.clearSession()
         }
@@ -551,6 +781,7 @@ Item {
                 activeSessionEmail = sess.email || ""
                 activeSessionToken = sess.token || ""
                 activeSessionExpiresAt = sess.expiresAt || ""
+                activeSessionLastSeen = sess.lastSeen || ""
                 return sess
             }
         }

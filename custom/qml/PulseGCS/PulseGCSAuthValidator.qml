@@ -51,9 +51,9 @@ QtObject {
         if (!/^\d{6}$/.test(trimmed)) {
             return { valid: false, error: qsTr("Verification code must be exactly 6 digits.") }
         }
-        // Authoritative verification code match for simulation testing or server pre-verification
-        var expected = (typeof authoritativeCode !== "undefined") ? authoritativeCode : "849201"
-        if (expected && trimmed !== expected) {
+        // If an explicit authoritative code is passed (e.g. unit tests), verify match;
+        // otherwise permit format to pass to backend service for attempt-counting and rate-limiting
+        if (authoritativeCode && trimmed !== authoritativeCode) {
             return { valid: false, error: qsTr("Invalid verification code. Please check and try again.") }
         }
         return { valid: true, error: "" }
@@ -68,9 +68,9 @@ QtObject {
         if (trimmed.length < 2) {
             return { valid: false, error: qsTr("Please enter your full legal name.") }
         }
-        var nameRegex = /^[a-zA-Z\s]+$/
+        var nameRegex = /^[a-zA-Z\s\.\'\-]+$/
         if (!nameRegex.test(trimmed)) {
-            return { valid: false, error: qsTr("Full name should not contain numbers or special symbols.") }
+            return { valid: false, error: qsTr("Full name should only contain letters, spaces, dots, or hyphens.") }
         }
         return { valid: true, error: "" }
     }
@@ -128,9 +128,19 @@ QtObject {
             return { valid: false, error: qsTr("Please enter a valid birth year.") }
         }
 
+        var today = new Date()
         var birthDate = new Date(year, month - 1, day)
-        if (birthDate > new Date()) {
+        if (birthDate > today) {
             return { valid: false, error: qsTr("Date of birth cannot be in the future.") }
+        }
+
+        var age = today.getFullYear() - year
+        var mDiff = today.getMonth() - (month - 1)
+        if (mDiff < 0 || (mDiff === 0 && today.getDate() < day)) {
+            age--
+        }
+        if (age < 18) {
+            return { valid: false, error: qsTr("Remote flight operator must be at least 18 years of age.") }
         }
 
         return { valid: true, error: "" }

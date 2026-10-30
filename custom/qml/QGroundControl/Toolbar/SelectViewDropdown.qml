@@ -109,6 +109,25 @@ ToolIndicatorPage {
             }
 
             SubMenuButton {
+                id: signOutButton
+                objectName: "toolbar_viewSignOut"
+                implicitHeight: root._toolButtonHeight
+                Layout.fillWidth: true
+                text: qsTr("Sign Out")
+                imageResource: "/qmlimages/Disconnect.svg"
+                onClicked: {
+                    if (mainWindow.allowViewSwitch()) {
+                        mainWindow.closeIndicatorDrawer()
+                        if (typeof PulseGCSStartupController !== "undefined" && PulseGCSStartupController) {
+                            PulseGCSStartupController.clearSession()
+                        }
+                        mainWindow.userAuthenticated = false
+                        mainWindow.showSignIn()
+                    }
+                }
+            }
+
+            SubMenuButton {
                 id: closeButton
                 objectName: "toolbar_viewClose"
                 implicitHeight: root._toolButtonHeight
