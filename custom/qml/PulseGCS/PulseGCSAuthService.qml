@@ -13,6 +13,8 @@ Item {
     property bool mockMode: (transportMode === "local_mock")
     property int requestTimeoutMs: 10000
     property bool isBusy: false
+    property int mockLatencyMs: 1200
+    property bool disableLatencyForTesting: false
     property string deviceId: (typeof PulseGCSStartupController !== "undefined" && PulseGCSStartupController && typeof PulseGCSStartupController.deviceId === "function") ? PulseGCSStartupController.deviceId() : "SKYX-DEV-CONSOLE-01"
 
     onMockModeChanged: {
@@ -152,11 +154,32 @@ Item {
     // =========================================================================
     // 3. Transport Dispatcher (Strategy Pattern: Local Fixture vs Remote HTTPS)
     // =========================================================================
+    Timer {
+        id: mockLatencyTimer
+        repeat: false
+        property var pendingCallback: null
+        onTriggered: {
+            if (typeof pendingCallback === "function") {
+                var cb = pendingCallback
+                pendingCallback = null
+                cb()
+            }
+        }
+    }
+
     function dispatchRequest(method, endpoint, payload, callback) {
         if (root.transportMode === "remote_api") {
             sendRemoteHttpRequest(method, endpoint, payload, callback)
         } else {
-            executeLocalFixtureQuery(method, endpoint, payload, callback)
+            if (!root.disableLatencyForTesting && root.mockLatencyMs > 0) {
+                mockLatencyTimer.interval = root.mockLatencyMs
+                mockLatencyTimer.pendingCallback = function() {
+                    executeLocalFixtureQuery(method, endpoint, payload, callback)
+                }
+                mockLatencyTimer.restart()
+            } else {
+                executeLocalFixtureQuery(method, endpoint, payload, callback)
+            }
         }
     }
 

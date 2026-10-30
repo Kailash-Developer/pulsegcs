@@ -21,6 +21,7 @@ Rectangle {
     // Backend Authentication & Mock/Live Service
     property alias authService: authService
     property alias signInCard: signInCard
+    property alias registrationCard: registrationCard
     PulseGCSAuthService {
         id: authService
         baseUrl: "https://api.pulsegcs.skyx.aero"
@@ -76,6 +77,7 @@ Rectangle {
     }
 
     function showApplicationUnderReviewModal() {
+        registrationCard.isSubmitted = true
         applicationSentPopup.open()
     }
 
@@ -197,6 +199,7 @@ Rectangle {
                         visible: root.currentView === "signin"
                         Layout.preferredHeight: visible ? -1 : 0
                         isOutdoor: root.isOutdoor
+                        isBusy: authService.isBusy
 
                         onSignInRequested: function(email, password) {
                             root.clearNotice()
@@ -270,6 +273,7 @@ Rectangle {
                         visible: root.currentView === "register"
                         Layout.preferredHeight: visible ? -1 : 0
                         isOutdoor: root.isOutdoor
+                        isBusy: authService.isBusy
 
                         onSignInRequested: {
                             root.clearNotice()
@@ -290,6 +294,7 @@ Rectangle {
                                         licenseReadyPopup.open()
                                     } else {
                                         root.clearNotice()
+                                        registrationCard.isSubmitted = true
                                         applicationSentPopup.open()
                                     }
                                     root.registrationCompleted(regData)
@@ -316,6 +321,7 @@ Rectangle {
                         visible: root.currentView === "recovery"
                         Layout.preferredHeight: visible ? -1 : 0
                         isOutdoor: root.isOutdoor
+                        isBusy: authService.isBusy
                         authService: authService
 
                         onSignInRequested: {
@@ -483,6 +489,7 @@ Rectangle {
 
                     onClicked: {
                         applicationSentPopup.close()
+                        registrationCard.resetForm()
                         root.currentView = "signin"
                     }
                 }

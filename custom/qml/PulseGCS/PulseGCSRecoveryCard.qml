@@ -10,6 +10,7 @@ ColumnLayout {
     spacing: 12
 
     property bool isOutdoor: false
+    property bool isBusy: false
     property string recoveryStage: "request" // "request" | "code" | "new_pw"
     property string recoveryEmail: ""
     property string recoveryCode: ""
@@ -153,22 +154,43 @@ ColumnLayout {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 implicitHeight: 36
-                text: qsTr("Send Reset Code")
+                enabled: !root.isBusy
+                text: root.isBusy ? qsTr("Sending...") : qsTr("Send Reset Code")
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 11
                 font.bold: true
-                contentItem: Text {
-                    text: sendCodeBtn.text
-                    font: sendCodeBtn.font
-                    color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    renderType: Text.QtRendering
+                contentItem: Item {
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: root.isBusy ? 8 : 0
+
+                        PulseGCSCircularLoader {
+                            anchors.verticalCenter: parent.verticalCenter
+                            size: 16
+                            lineWidth: 2.0
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            running: root.isBusy
+                            visible: root.isBusy
+                            width: root.isBusy ? size : 0
+                            height: root.isBusy ? size : 0
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: sendCodeBtn.text
+                            font: sendCodeBtn.font
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            renderType: Text.QtRendering
+                        }
+                    }
                 }
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusButton
                     color: sendCodeBtn.pressed ? PulseGCSTokens.accentHoverColor(root.isOutdoor)
                                               : (root.isOutdoor ? PulseGCSTokens.outdoorAccentCore : PulseGCSTokens.accent)
+                    opacity: root.isBusy ? 0.75 : 1.0
                 }
                 onClicked: {
                     var emailCheck = PulseGCSAuthValidator.validateEmail(root.recoveryEmail)
@@ -377,22 +399,43 @@ ColumnLayout {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 implicitHeight: 36
-                text: qsTr("Verify Code ›")
+                enabled: !root.isBusy
+                text: root.isBusy ? qsTr("Verifying...") : qsTr("Verify Code ›")
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 11
                 font.bold: true
-                contentItem: Text {
-                    text: verifyCodeBtn.text
-                    font: verifyCodeBtn.font
-                    color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    renderType: Text.QtRendering
+                contentItem: Item {
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: root.isBusy ? 8 : 0
+
+                        PulseGCSCircularLoader {
+                            anchors.verticalCenter: parent.verticalCenter
+                            size: 16
+                            lineWidth: 2.0
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            running: root.isBusy
+                            visible: root.isBusy
+                            width: root.isBusy ? size : 0
+                            height: root.isBusy ? size : 0
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: verifyCodeBtn.text
+                            font: verifyCodeBtn.font
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            renderType: Text.QtRendering
+                        }
+                    }
                 }
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusButton
                     color: verifyCodeBtn.pressed ? PulseGCSTokens.accentHoverColor(root.isOutdoor)
                                                 : (root.isOutdoor ? PulseGCSTokens.outdoorAccentCore : PulseGCSTokens.accent)
+                    opacity: root.isBusy ? 0.75 : 1.0
                 }
                 onClicked: {
                     var codeCheck = PulseGCSAuthValidator.validateRecoveryCode(root.recoveryCode)
@@ -547,22 +590,43 @@ ColumnLayout {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 implicitHeight: 36
-                text: qsTr("Update Password")
+                enabled: !root.isBusy
+                text: root.isBusy ? qsTr("Updating...") : qsTr("Update Password")
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 11
                 font.bold: true
-                contentItem: Text {
-                    text: updatePwBtn.text
-                    font: updatePwBtn.font
-                    color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    renderType: Text.QtRendering
+                contentItem: Item {
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: root.isBusy ? 8 : 0
+
+                        PulseGCSCircularLoader {
+                            anchors.verticalCenter: parent.verticalCenter
+                            size: 16
+                            lineWidth: 2.0
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            running: root.isBusy
+                            visible: root.isBusy
+                            width: root.isBusy ? size : 0
+                            height: root.isBusy ? size : 0
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: updatePwBtn.text
+                            font: updatePwBtn.font
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            renderType: Text.QtRendering
+                        }
+                    }
                 }
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusButton
                     color: updatePwBtn.pressed ? PulseGCSTokens.accentHoverColor(root.isOutdoor)
                                               : (root.isOutdoor ? PulseGCSTokens.outdoorAccentCore : PulseGCSTokens.accent)
+                    opacity: root.isBusy ? 0.75 : 1.0
                 }
                 onClicked: {
                     var matchCheck = PulseGCSAuthValidator.validatePasswordMatch(root.recoveryNewPw, root.recoveryConfirmPw)

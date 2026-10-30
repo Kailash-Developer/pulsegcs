@@ -19,6 +19,26 @@ ColumnLayout {
     property alias echoMode: textField.echoMode
     property bool showPassword: false
 
+    property alias inputItem: textField
+    property var nextTabItem: null
+    property var backTabItem: null
+
+    function forceActiveFocus() {
+        textField.forceActiveFocus()
+        textField.selectAll()
+    }
+
+    function clear() {
+        control.text = ""
+        textField.text = ""
+    }
+
+    onTextChanged: {
+        if (textField.text !== control.text) {
+            textField.text = control.text
+        }
+    }
+
     signal textEdited(string newText)
     signal actionClicked()
 
@@ -69,6 +89,25 @@ ColumnLayout {
             leftPadding: 10
             rightPadding: 36
             renderType: Text.QtRendering
+            activeFocusOnTab: true
+            KeyNavigation.tab: control.nextTabItem
+            KeyNavigation.backtab: control.backTabItem
+            Keys.onTabPressed: function(event) {
+                if (control.nextTabItem) {
+                    if (typeof control.nextTabItem.forceActiveFocus === "function") {
+                        control.nextTabItem.forceActiveFocus()
+                    }
+                    event.accepted = true
+                }
+            }
+            Keys.onBacktabPressed: function(event) {
+                if (control.backTabItem) {
+                    if (typeof control.backTabItem.forceActiveFocus === "function") {
+                        control.backTabItem.forceActiveFocus()
+                    }
+                    event.accepted = true
+                }
+            }
             background: Rectangle {
                 radius: PulseGCSTokens.radiusControl
                 color: control.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.buttonSurface

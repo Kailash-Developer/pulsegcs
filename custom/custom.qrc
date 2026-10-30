@@ -42,8 +42,10 @@
         <file alias="PulseGCSPasswordField.qml">qml/PulseGCS/PulseGCSPasswordField.qml</file>
         <file alias="PulseGCSSignInCard.qml">qml/PulseGCS/PulseGCSSignInCard.qml</file>
         <file alias="PulseGCSRegistrationCard.qml">qml/PulseGCS/PulseGCSRegistrationCard.qml</file>
+        <file alias="PulseGCSDateField.qml">qml/PulseGCS/PulseGCSDateField.qml</file>
         <file alias="PulseGCSRecoveryCard.qml">qml/PulseGCS/PulseGCSRecoveryCard.qml</file>
         <file alias="PulseGCSAuthService.qml">qml/PulseGCS/PulseGCSAuthService.qml</file>
+        <file alias="PulseGCSCircularLoader.qml">qml/PulseGCS/PulseGCSCircularLoader.qml</file>
         <file alias="PulseGCSDemoModeManager.qml">qml/PulseGCS/PulseGCSDemoModeManager.qml</file>
         <file alias="PulseGCSDemoBanner.qml">qml/PulseGCS/PulseGCSDemoBanner.qml</file>
         <file alias="qmldir">qml/PulseGCS/qmldir</file>
