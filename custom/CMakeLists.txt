@@ -52,10 +52,10 @@ endif()
 # Custom Resources and Import Paths
 # ============================================================================
 
-list(APPEND CUSTOM_RESOURCES
+set(CUSTOM_RESOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/custom.qrc
 )
-set(QGC_RESOURCES ${QGC_RESOURCES} ${CUSTOM_RESOURCES} CACHE STRING "Paths to .qrc Resources" FORCE)
+set(QGC_RESOURCES ${CUSTOM_RESOURCES} CACHE STRING "Paths to .qrc Resources" FORCE)
 
 # ============================================================================
 # Custom Plugin Sources
@@ -69,6 +69,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAircraftInfo.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAircraftManager.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAircraftManager.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAuthService.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSAuthService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSStartupController.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PulseGCSStartupController.h
     CACHE INTERNAL "" FORCE
@@ -83,6 +85,14 @@ set(CUSTOM_INCLUDE_DIRECTORIES
     CACHE INTERNAL "" FORCE
 )
 
+# Include MockLink headers only in Debug builds where MockLink is compiled by upstream
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    list(APPEND CUSTOM_INCLUDE_DIRECTORIES
+        ${CMAKE_SOURCE_DIR}/src/Comms/MockLink
+    )
+    set(CUSTOM_INCLUDE_DIRECTORIES ${CUSTOM_INCLUDE_DIRECTORIES} CACHE INTERNAL "" FORCE)
+endif()
+
 set(CUSTOM_DEFINITIONS
     QGC_CUSTOM_BUILD
     CUSTOMHEADER="CustomPlugin.h"
@@ -94,5 +104,6 @@ set(CUSTOM_QT_COMPONENTS
     Core
     Quick
     Qml
+    Network
     CACHE INTERNAL "" FORCE
 )

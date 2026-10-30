@@ -10,6 +10,8 @@ ColumnLayout {
     spacing: 11
 
     property bool isOutdoor: false
+    property bool isBusy: false
+    property bool isSubmitted: false
     property int currentStep: 1 // 1: Operator Information, 2: Aircraft & Console
 
     // Form fields
@@ -17,6 +19,7 @@ ColumnLayout {
     property string regPhone: ""
     property string regEmail: ""
     property string regPw: ""
+    property string regConfirmPw: ""
     property string regDOB: ""
     property string regDroneModel: "SkyX Kissan"
     property string regDroneSerial: ""
@@ -24,22 +27,56 @@ ColumnLayout {
     property bool consoleBindingEnabled: true
     property bool showBindingHelp: false
 
+    property alias step2BackButton: step2BackBtn
+    property alias step2SubmitButton: step2SubmitBtn
+
     signal signInRequested()
     signal applicationSubmitted(var regData)
     signal noticeRequested(string type, string message)
 
     function resetForm() {
         currentStep = 1
+        isSubmitted = false
         regFullName = ""
         regPhone = ""
         regEmail = ""
         regPw = ""
+        regConfirmPw = ""
         regDOB = ""
         regDroneModel = "SkyX Kissan"
         regDroneSerial = ""
         regUIN = ""
         consoleBindingEnabled = true
         showBindingHelp = false
+        if (fullNameField) fullNameField.text = ""
+        if (phoneField) phoneField.text = ""
+        if (emailField) emailField.text = ""
+        if (regPwControl) {
+            if (typeof regPwControl.clear === "function") {
+                regPwControl.clear()
+            } else {
+                regPwControl.text = ""
+            }
+        }
+        if (regConfirmPwControl) {
+            if (typeof regConfirmPwControl.clear === "function") {
+                regConfirmPwControl.clear()
+            } else {
+                regConfirmPwControl.text = ""
+            }
+        }
+        if (dobField) {
+            if (typeof dobField.clear === "function") {
+                dobField.clear()
+            } else {
+                dobField.text = ""
+            }
+        }
+        if (droneSerialField) droneSerialField.text = ""
+        if (uinField) uinField.text = ""
+        if (droneModelCombo) {
+            droneModelCombo.currentIndex = 0
+        }
     }
 
     QGCPalette { id: qgcPal }
@@ -175,6 +212,7 @@ ColumnLayout {
                 leftPadding: 10
                 rightPadding: 10
                 renderType: Text.QtRendering
+                KeyNavigation.tab: phoneField
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusControl
                     color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.buttonSurface
@@ -202,14 +240,18 @@ ColumnLayout {
                 Layout.fillWidth: true
                 implicitHeight: 34
                 text: root.regPhone
-                placeholderText: qsTr("+91 98765 43210")
+                placeholderText: qsTr("9876543210")
                 placeholderTextColor: PulseGCSTokens.metaText(root.isOutdoor)
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 12
                 color: PulseGCSTokens.primaryText(root.isOutdoor)
                 leftPadding: 10
                 rightPadding: 10
+                inputMethodHints: Qt.ImhDigitsOnly
+                maximumLength: 10
                 renderType: Text.QtRendering
+                KeyNavigation.tab: emailField
+                KeyNavigation.backtab: fullNameField
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusControl
                     color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.buttonSurface
@@ -245,6 +287,8 @@ ColumnLayout {
                 leftPadding: 10
                 rightPadding: 10
                 renderType: Text.QtRendering
+                KeyNavigation.tab: regPwControl.inputItem
+                KeyNavigation.backtab: phoneField
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusControl
                     color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.buttonSurface
@@ -265,7 +309,24 @@ ColumnLayout {
             text: root.regPw
             helperText: qsTr("Use 8 or more characters with letters, numbers & symbols.")
             isOutdoor: root.isOutdoor
+            nextTabItem: regConfirmPwControl.inputItem
+            backTabItem: emailField
             onTextEdited: function(val) { root.regPw = val }
+        }
+
+        // Confirm Password with eye reveal
+        PulseGCSPasswordField {
+            id: regConfirmPwControl
+            Layout.fillWidth: true
+            label: qsTr("Confirm account password")
+            requiredField: true
+            placeholderText: qsTr("Re-enter your account password")
+            text: root.regConfirmPw
+            helperText: qsTr("Must match account password entered above.")
+            isOutdoor: root.isOutdoor
+            nextTabItem: dobField.firstFocusItem
+            backTabItem: regPwControl.inputItem
+            onTextEdited: function(val) { root.regConfirmPw = val }
         }
 
         // Date of Birth
@@ -280,25 +341,14 @@ ColumnLayout {
                 color: PulseGCSTokens.mutedText(root.isOutdoor)
                 renderType: Text.QtRendering
             }
-            TextField {
+            PulseGCSDateField {
                 id: dobField
                 Layout.fillWidth: true
                 implicitHeight: 34
+                isOutdoor: root.isOutdoor
                 text: root.regDOB
-                placeholderText: qsTr("DD / MM / YYYY (e.g. 15 / 06 / 1995)")
-                placeholderTextColor: PulseGCSTokens.metaText(root.isOutdoor)
-                font.family: ScreenTools.normalFontFamily
-                font.pixelSize: 12
-                color: PulseGCSTokens.primaryText(root.isOutdoor)
-                leftPadding: 10
-                rightPadding: 10
-                renderType: Text.QtRendering
-                background: Rectangle {
-                    radius: PulseGCSTokens.radiusControl
-                    color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.buttonSurface
-                    border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
-                    border.width: 1
-                }
+                previousTabItem: regConfirmPwControl.inputItem
+                nextTabItem: step1NextBtn
                 onTextChanged: root.regDOB = text
             }
         }
@@ -344,6 +394,7 @@ ColumnLayout {
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 11
                 font.bold: true
+                KeyNavigation.backtab: dobField.lastFocusItem
                 contentItem: Text {
                     text: step1NextBtn.text
                     font: step1NextBtn.font
@@ -378,6 +429,11 @@ ColumnLayout {
                         root.noticeRequested("err", pwCheck.error)
                         return
                     }
+                    var pwMatchCheck = PulseGCSAuthValidator.validatePasswordMatch(root.regPw, root.regConfirmPw)
+                    if (!pwMatchCheck.valid) {
+                        root.noticeRequested("err", pwMatchCheck.error)
+                        return
+                    }
                     var dobCheck = PulseGCSAuthValidator.validateDOB(root.regDOB)
                     if (!dobCheck.valid) {
                         root.noticeRequested("err", dobCheck.error)
@@ -400,7 +456,7 @@ ColumnLayout {
         spacing: 11
 
         Text {
-            text: qsTr("Aircraft & Console Binding")
+            text: qsTr("Aircraft & Console Details")
             font.family: ScreenTools.normalFontFamily
             font.pixelSize: 14
             font.bold: true
@@ -413,7 +469,7 @@ ColumnLayout {
             Layout.fillWidth: true
             spacing: 4
             Text {
-                text: qsTr("Drone model *")
+                text: qsTr("Drone Model *")
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 11
                 font.bold: true
@@ -428,22 +484,122 @@ ColumnLayout {
                 currentIndex: 0
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 12
+                KeyNavigation.tab: droneSerialField
+
+                contentItem: Text {
+                    leftPadding: 12
+                    rightPadding: 28
+                    text: droneModelCombo.displayText
+                    font: droneModelCombo.font
+                    color: PulseGCSTokens.primaryText(root.isOutdoor)
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                    renderType: Text.QtRendering
+                }
+
+                indicator: Text {
+                    anchors.right: droneModelCombo.right
+                    anchors.rightMargin: 12
+                    anchors.verticalCenter: droneModelCombo.verticalCenter
+                    text: droneModelCombo.popup.visible ? "▲" : "▼"
+                    font.pixelSize: 9
+                    font.family: ScreenTools.normalFontFamily
+                    color: PulseGCSTokens.metaText(root.isOutdoor)
+                    renderType: Text.QtRendering
+                }
+
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusControl
                     color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.buttonSurface
-                    border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
+                    border.color: (droneModelCombo.activeFocus || droneModelCombo.popup.visible)
+                                  ? PulseGCSTokens.accentColor(root.isOutdoor)
+                                  : PulseGCSTokens.subtleBorder(root.isOutdoor)
                     border.width: 1
                 }
-                onCurrentTextChanged: root.regDroneModel = currentText
+
+                popup: Popup {
+                    y: droneModelCombo.height + 3
+                    width: droneModelCombo.width
+                    implicitHeight: Math.min(200, contentItem.implicitHeight + 8)
+                    padding: 4
+                    topMargin: 0
+                    bottomMargin: 0
+
+                    contentItem: ListView {
+                        clip: true
+                        implicitHeight: contentHeight
+                        model: droneModelCombo.popup.visible ? droneModelCombo.delegateModel : null
+                        currentIndex: droneModelCombo.highlightedIndex
+                        boundsBehavior: Flickable.StopAtBounds
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                        }
+                    }
+
+                    background: Rectangle {
+                        radius: PulseGCSTokens.radiusControl
+                        color: root.isOutdoor ? PulseGCSTokens.outdoorWindow : PulseGCSTokens.surfaceElevated
+                        border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
+                        border.width: 1
+                    }
+                }
+
+                delegate: ItemDelegate {
+                    id: itemDel
+                    width: droneModelCombo.width - 8
+                    height: 32
+                    padding: 0
+                    highlighted: droneModelCombo.highlightedIndex === index
+
+                    contentItem: Text {
+                        leftPadding: 10
+                        rightPadding: 10
+                        text: modelData
+                        font.family: ScreenTools.normalFontFamily
+                        font.pixelSize: 12
+                        font.bold: droneModelCombo.currentIndex === index
+                        color: (droneModelCombo.currentIndex === index)
+                               ? PulseGCSTokens.accentColor(root.isOutdoor)
+                               : PulseGCSTokens.primaryText(root.isOutdoor)
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+
+                    background: Rectangle {
+                        radius: 4
+                        color: (droneModelCombo.currentIndex === index)
+                               ? (root.isOutdoor ? PulseGCSTokens.outdoorCardTintSolid : PulseGCSTokens.cardTintSolid)
+                               : (itemDel.hovered || itemDel.highlighted
+                                  ? (root.isOutdoor ? PulseGCSTokens.outdoorWindowShade : PulseGCSTokens.buttonSurface)
+                                  : "transparent")
+                    }
+                }
+
+                onActivated: function(index) {
+                    root.regDroneModel = textAt(index)
+                }
+
+                onCurrentTextChanged: {
+                    if (currentText.length > 0) {
+                        root.regDroneModel = currentText
+                    }
+                }
+
+                Component.onCompleted: {
+                    currentIndex = 0
+                    if (!root.regDroneModel || root.regDroneModel.length === 0) {
+                        root.regDroneModel = textAt(0)
+                    }
+                }
             }
         }
 
-        // Drone Serial
+        // Drone Serial Number
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 4
             Text {
-                text: qsTr("Visible drone serial number *")
+                text: qsTr("Drone Serial Number *")
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 11
                 font.bold: true
@@ -463,6 +619,8 @@ ColumnLayout {
                 leftPadding: 10
                 rightPadding: 10
                 renderType: Text.QtRendering
+                KeyNavigation.tab: uinField
+                KeyNavigation.backtab: droneModelCombo
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusControl
                     color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.buttonSurface
@@ -471,21 +629,14 @@ ColumnLayout {
                 }
                 onTextChanged: root.regDroneSerial = text
             }
-            Text {
-                text: qsTr("Found on physical aircraft chassis plate or barcode label.")
-                font.family: ScreenTools.normalFontFamily
-                font.pixelSize: 10
-                color: PulseGCSTokens.metaText(root.isOutdoor)
-                renderType: Text.QtRendering
-            }
         }
 
-        // Civil Aviation UIN (Optional)
+        // Drone UIN Number (Optional)
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 4
             Text {
-                text: qsTr("Civil aviation UIN (Optional)")
+                text: qsTr("Drone UIN Number (Optional)")
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 11
                 color: PulseGCSTokens.mutedText(root.isOutdoor)
@@ -496,7 +647,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 implicitHeight: 34
                 text: root.regUIN
-                placeholderText: qsTr("e.g. UIN-IND-XXXX-XXXX (Optional)")
+                placeholderText: qsTr("e.g. UIN-IND-XXXX-XXXX")
                 placeholderTextColor: PulseGCSTokens.metaText(root.isOutdoor)
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 12
@@ -504,6 +655,8 @@ ColumnLayout {
                 leftPadding: 10
                 rightPadding: 10
                 renderType: Text.QtRendering
+                KeyNavigation.tab: bindSwitch
+                KeyNavigation.backtab: droneSerialField
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusControl
                     color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.buttonSurface
@@ -514,14 +667,23 @@ ColumnLayout {
             }
         }
 
-        // Console Binding Card
+        // Console Binding Card (Matching docs/M3 screens.html .console-binding-card)
         Rectangle {
+            id: consoleBindingCard
             Layout.fillWidth: true
-            implicitHeight: bindingCol.implicitHeight + 20
-            radius: PulseGCSTokens.radiusCard
-            color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.surfaceElevated
-            border.color: PulseGCSTokens.subtleBorder(root.isOutdoor)
+            radius: 8
+            color: root.consoleBindingEnabled
+                   ? (root.isOutdoor ? "#E8F4F7" : Qt.rgba(22/255, 50/255, 74/255, 0.85))
+                   : (root.isOutdoor ? "#F4F7FA" : Qt.rgba(22/255, 50/255, 74/255, 0.65))
+            border.color: root.consoleBindingEnabled
+                          ? (root.isOutdoor ? PulseGCSTokens.outdoorAccent : Qt.rgba(47/255, 208/255, 232/255, 0.50))
+                          : (root.isOutdoor ? PulseGCSTokens.outdoorBorderSubtle : Qt.rgba(140/255, 163/255, 184/255, 0.22))
             border.width: 1
+
+            implicitHeight: bindingCol.implicitHeight + 20
+
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on border.color { ColorAnimation { duration: 150 } }
 
             ColumnLayout {
                 id: bindingCol
@@ -529,6 +691,7 @@ ColumnLayout {
                 anchors.margins: 10
                 spacing: 8
 
+                // Simple Row: Label + Help Button + Compact 38x20 Toggle Switch
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
@@ -542,12 +705,35 @@ ColumnLayout {
                         renderType: Text.QtRendering
                     }
 
-                    Text {
-                        text: "ℹ"
-                        font.pixelSize: 13
-                        color: PulseGCSTokens.accentColor(root.isOutdoor)
+                    // Help Circle Button
+                    Rectangle {
+                        implicitWidth: 18
+                        implicitHeight: 18
+                        radius: 9
+                        color: helpMouse.containsMouse
+                               ? (root.isOutdoor ? PulseGCSTokens.outdoorWindowShade : PulseGCSTokens.buttonSurface)
+                               : "transparent"
+                        border.color: helpMouse.containsMouse
+                                      ? PulseGCSTokens.accentColor(root.isOutdoor)
+                                      : Qt.rgba(140/255, 163/255, 184/255, 0.35)
+                        border.width: 1
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "?"
+                            font.family: ScreenTools.normalFontFamily
+                            font.pixelSize: 11
+                            font.bold: true
+                            color: helpMouse.containsMouse
+                                   ? PulseGCSTokens.accentColor(root.isOutdoor)
+                                   : PulseGCSTokens.mutedText(root.isOutdoor)
+                            renderType: Text.QtRendering
+                        }
+
                         MouseArea {
+                            id: helpMouse
                             anchors.fill: parent
+                            hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: root.showBindingHelp = !root.showBindingHelp
                         }
@@ -555,37 +741,122 @@ ColumnLayout {
 
                     Item { Layout.fillWidth: true }
 
+                    // Compact M3 Toggle Switch (38px x 20px, 14px knob)
                     Switch {
                         id: bindSwitch
+                        implicitWidth: 38
+                        implicitHeight: 20
                         checked: root.consoleBindingEnabled
                         onToggled: root.consoleBindingEnabled = checked
+                        KeyNavigation.tab: step2SubmitBtn
+                        KeyNavigation.backtab: uinField
+
+                        indicator: Rectangle {
+                            implicitWidth: 38
+                            implicitHeight: 20
+                            radius: 10
+                            color: bindSwitch.checked
+                                   ? PulseGCSTokens.accentColor(root.isOutdoor)
+                                   : (root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeDark : Qt.rgba(140/255, 163/255, 184/255, 0.35))
+                            border.color: bindSwitch.checked
+                                          ? PulseGCSTokens.accentColor(root.isOutdoor)
+                                          : Qt.rgba(140/255, 163/255, 184/255, 0.25)
+                            border.width: 1
+
+                            Rectangle {
+                                x: bindSwitch.checked ? 21 : 2
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 14
+                                height: 14
+                                radius: 7
+                                color: bindSwitch.checked
+                                       ? (root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink)
+                                       : (root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.primaryText(root.isOutdoor))
+
+                                Behavior on x {
+                                    NumberAnimation { duration: 150; easing.type: Easing.InOutQuad }
+                                }
+                            }
+                        }
                     }
                 }
 
-                Text {
+                // Help Explanation Box (.binding-help-box)
+                Rectangle {
                     visible: root.showBindingHelp
                     Layout.fillWidth: true
-                    text: qsTr("PulseGCS binds each active flight license to a single operating console to ensure operational security. Device identity details are verified by SKYX Engineering.")
-                    font.family: ScreenTools.normalFontFamily
-                    font.pixelSize: 10
-                    color: PulseGCSTokens.mutedText(root.isOutdoor)
-                    wrapMode: Text.WordWrap
-                    renderType: Text.QtRendering
+                    radius: 6
+                    color: root.isOutdoor ? "#FFFFFF" : Qt.rgba(10/255, 20/255, 32/255, 0.60)
+                    border.color: root.isOutdoor ? "#DCE5EC" : Qt.rgba(140/255, 163/255, 184/255, 0.20)
+                    border.width: 1
+                    implicitHeight: helpCol.implicitHeight + 16
+
+                    ColumnLayout {
+                        id: helpCol
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        spacing: 4
+
+                        RowLayout {
+                            Layout.fillWidth: true
+
+                            Text {
+                                text: qsTr("Why bind to this console?")
+                                font.family: ScreenTools.normalFontFamily
+                                font.pixelSize: 11
+                                font.bold: true
+                                color: PulseGCSTokens.primaryText(root.isOutdoor)
+                                renderType: Text.QtRendering
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Text {
+                                text: "✕"
+                                font.pixelSize: 10
+                                color: PulseGCSTokens.metaText(root.isOutdoor)
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.showBindingHelp = false
+                                }
+                            }
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: qsTr("PulseGCS binds each active flight license to a single operating console to ensure operational security and regulatory compliance. Device identity details are collected automatically in the background and verified by SKYX Engineering during approval.")
+                            font.family: ScreenTools.normalFontFamily
+                            font.pixelSize: 10
+                            lineHeight: 1.3
+                            color: PulseGCSTokens.mutedText(root.isOutdoor)
+                            wrapMode: Text.WordWrap
+                            renderType: Text.QtRendering
+                        }
+                    }
                 }
             }
+        }
+
+        // Divider Line before Action Buttons (Matching M3 screens .step2-card)
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.topMargin: 4
+            implicitHeight: 1
+            color: Qt.rgba(140/255, 163/255, 184/255, 0.18)
         }
 
         // Step 2 Action Buttons
         RowLayout {
             Layout.fillWidth: true
-            Layout.topMargin: 8
+            Layout.topMargin: 4
             spacing: 12
 
             Button {
                 id: step2BackBtn
-                text: qsTr("‹ Back")
+                text: root.isSubmitted ? qsTr("Close") : qsTr("‹ Back")
                 implicitHeight: 34
-                implicitWidth: 90
+                implicitWidth: root.isSubmitted ? 100 : 90
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 11
                 font.bold: true
@@ -605,7 +876,12 @@ ColumnLayout {
                 }
                 onClicked: {
                     root.noticeRequested("", "")
-                    root.currentStep = 1
+                    if (root.isSubmitted) {
+                        root.resetForm()
+                        root.signInRequested()
+                    } else {
+                        root.currentStep = 1
+                    }
                 }
             }
 
@@ -613,26 +889,55 @@ ColumnLayout {
 
             Button {
                 id: step2SubmitBtn
-                text: qsTr("Submit Application")
+                text: root.isSubmitted ? qsTr("Edit Submission") : (root.isBusy ? qsTr("Submitting...") : qsTr("Submit Application"))
+                enabled: !root.isBusy
                 implicitHeight: 34
                 implicitWidth: 150
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 11
                 font.bold: true
-                contentItem: Text {
-                    text: step2SubmitBtn.text
-                    font: step2SubmitBtn.font
-                    color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    renderType: Text.QtRendering
+                KeyNavigation.backtab: bindSwitch
+                contentItem: Item {
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: (!root.isSubmitted && root.isBusy) ? 8 : 0
+
+                        PulseGCSCircularLoader {
+                            anchors.verticalCenter: parent.verticalCenter
+                            size: 16
+                            lineWidth: 2.0
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            running: !root.isSubmitted && root.isBusy
+                            visible: !root.isSubmitted && root.isBusy
+                            width: (!root.isSubmitted && root.isBusy) ? size : 0
+                            height: (!root.isSubmitted && root.isBusy) ? size : 0
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: step2SubmitBtn.text
+                            font: step2SubmitBtn.font
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            renderType: Text.QtRendering
+                        }
+                    }
                 }
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusButton
                     color: step2SubmitBtn.pressed ? PulseGCSTokens.accentHoverColor(root.isOutdoor)
                                                  : (root.isOutdoor ? PulseGCSTokens.outdoorAccentCore : PulseGCSTokens.accent)
+                    opacity: root.isBusy ? 0.75 : 1.0
                 }
                 onClicked: {
+                    if (root.isSubmitted) {
+                        root.noticeRequested("", "")
+                        root.isSubmitted = false
+                        root.currentStep = 1
+                        return
+                    }
+
                     var serialCheck = PulseGCSAuthValidator.validateDroneSerial(root.regDroneSerial)
                     if (!serialCheck.valid) {
                         root.noticeRequested("err", serialCheck.error)

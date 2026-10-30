@@ -10,6 +10,7 @@ ColumnLayout {
     spacing: 14
 
     property bool isOutdoor: false
+    property bool isBusy: false
     property string email: ""
     property string password: ""
 
@@ -72,6 +73,7 @@ ColumnLayout {
             leftPadding: 10
             rightPadding: 10
             renderType: Text.QtRendering
+            KeyNavigation.tab: pwControl.inputItem
             background: Rectangle {
                 radius: PulseGCSTokens.radiusControl
                 color: root.isOutdoor ? PulseGCSTokens.outdoorWindowShadeLight : PulseGCSTokens.buttonSurface
@@ -92,6 +94,8 @@ ColumnLayout {
         placeholderText: qsTr("Enter your password")
         text: root.password
         isOutdoor: root.isOutdoor
+        nextTabItem: submitBtn
+        backTabItem: emailField
         onActionClicked: root.forgotPasswordRequested()
         onTextEdited: function(newText) { root.password = newText }
     }
@@ -136,24 +140,45 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             implicitHeight: 36
+            enabled: !root.isBusy
             font.family: ScreenTools.normalFontFamily
             font.pixelSize: 12
             font.bold: true
-            text: qsTr("Sign In")
+            text: root.isBusy ? qsTr("Signing In...") : qsTr("Sign In")
 
-            contentItem: Text {
-                text: submitBtn.text
-                font: submitBtn.font
-                color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                renderType: Text.QtRendering
+            contentItem: Item {
+                Row {
+                    anchors.centerIn: parent
+                    spacing: root.isBusy ? 8 : 0
+
+                    PulseGCSCircularLoader {
+                        anchors.verticalCenter: parent.verticalCenter
+                        size: 16
+                        lineWidth: 2.0
+                        color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                        running: root.isBusy
+                        visible: root.isBusy
+                        width: root.isBusy ? size : 0
+                        height: root.isBusy ? size : 0
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: submitBtn.text
+                        font: submitBtn.font
+                        color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
+                    }
+                }
             }
 
             background: Rectangle {
                 radius: PulseGCSTokens.radiusButton
                 color: submitBtn.pressed ? PulseGCSTokens.accentHoverColor(root.isOutdoor)
                                          : (root.isOutdoor ? PulseGCSTokens.outdoorAccentCore : PulseGCSTokens.accent)
+                opacity: root.isBusy ? 0.75 : 1.0
             }
 
             onClicked: {
@@ -176,7 +201,7 @@ ColumnLayout {
     Text {
         Layout.fillWidth: true
         Layout.topMargin: 2
-        text: qsTr("Session remains valid offline for up to 7 days on this registered console.")
+        text: qsTr("Session remains valid offline for up to 7 days on this registered device.")
         font.family: ScreenTools.normalFontFamily
         font.pixelSize: 10
         color: PulseGCSTokens.metaText(root.isOutdoor)

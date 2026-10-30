@@ -17,6 +17,7 @@ PulseGCSActionableIssue 1.0 PulseGCSActionableIssue.qml
 PulseGCSNoticeBar 1.0 PulseGCSNoticeBar.qml
 PulseGCSReadinessSummary 1.0 PulseGCSReadinessSummary.qml
 PulseGCSReconnectBanner 1.0 PulseGCSReconnectBanner.qml
+PulseGCSDateField 1.0 PulseGCSDateField.qml
 PulseGCSSignInView 1.0 PulseGCSSignInView.qml
 singleton PulseGCSAuthValidator 1.0 PulseGCSAuthValidator.qml
 PulseGCSPasswordField 1.0 PulseGCSPasswordField.qml
@@ -24,4 +25,7 @@ PulseGCSSignInCard 1.0 PulseGCSSignInCard.qml
 PulseGCSRegistrationCard 1.0 PulseGCSRegistrationCard.qml
 PulseGCSRecoveryCard 1.0 PulseGCSRecoveryCard.qml
 PulseGCSAuthService 1.0 PulseGCSAuthService.qml
+PulseGCSCircularLoader 1.0 PulseGCSCircularLoader.qml
+singleton PulseGCSDemoModeManager 1.0 PulseGCSDemoModeManager.qml
+PulseGCSDemoBanner 1.0 PulseGCSDemoBanner.qml
 

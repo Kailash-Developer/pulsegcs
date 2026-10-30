@@ -10,11 +10,37 @@ ColumnLayout {
     spacing: 12
 
     property bool isOutdoor: false
+    property bool isBusy: false
     property string recoveryStage: "request" // "request" | "code" | "new_pw"
     property string recoveryEmail: ""
     property string recoveryCode: ""
     property string recoveryNewPw: ""
     property string recoveryConfirmPw: ""
+    property var authService: null
+    property string resetToken: ""
+    property int resendCooldown: 120 // 2 minutes (120 seconds)
+    readonly property string formattedCooldown: {
+        var m = Math.floor(resendCooldown / 60)
+        var s = resendCooldown % 60
+        return (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s)
+    }
+
+    Timer {
+        id: cooldownTimer
+        interval: 1000
+        repeat: true
+        running: root.recoveryStage === "code" && root.resendCooldown > 0
+        onTriggered: {
+            if (root.resendCooldown > 0) {
+                root.resendCooldown -= 1
+            }
+        }
+    }
+
+    function startResendCooldown() {
+        resendCooldown = 120
+        cooldownTimer.restart()
+    }
 
     signal signInRequested()
     signal recoveryCompleted()
@@ -26,6 +52,13 @@ ColumnLayout {
         recoveryCode = ""
         recoveryNewPw = ""
         recoveryConfirmPw = ""
+        resetToken = ""
+        resendCooldown = 120
+        cooldownTimer.stop()
+        if (recovEmailField) recovEmailField.text = ""
+        if (recovCodeField) recovCodeField.text = ""
+        if (recovNewPwField && typeof recovNewPwField.clear === "function") recovNewPwField.clear()
+        if (recovConfirmPwField && typeof recovConfirmPwField.clear === "function") recovConfirmPwField.clear()
         noticeRequested("", "")
     }
 
@@ -150,22 +183,43 @@ ColumnLayout {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 implicitHeight: 36
-                text: qsTr("Send Reset Code")
+                enabled: !root.isBusy
+                text: root.isBusy ? qsTr("Sending...") : qsTr("Send Reset Code")
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 11
                 font.bold: true
-                contentItem: Text {
-                    text: sendCodeBtn.text
-                    font: sendCodeBtn.font
-                    color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    renderType: Text.QtRendering
+                contentItem: Item {
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: root.isBusy ? 8 : 0
+
+                        PulseGCSCircularLoader {
+                            anchors.verticalCenter: parent.verticalCenter
+                            size: 16
+                            lineWidth: 2.0
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            running: root.isBusy
+                            visible: root.isBusy
+                            width: root.isBusy ? size : 0
+                            height: root.isBusy ? size : 0
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: sendCodeBtn.text
+                            font: sendCodeBtn.font
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            renderType: Text.QtRendering
+                        }
+                    }
                 }
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusButton
                     color: sendCodeBtn.pressed ? PulseGCSTokens.accentHoverColor(root.isOutdoor)
                                               : (root.isOutdoor ? PulseGCSTokens.outdoorAccentCore : PulseGCSTokens.accent)
+                    opacity: root.isBusy ? 0.75 : 1.0
                 }
                 onClicked: {
                     var emailCheck = PulseGCSAuthValidator.validateEmail(root.recoveryEmail)
@@ -173,8 +227,20 @@ ColumnLayout {
                         root.noticeRequested("err", emailCheck.error)
                         return
                     }
-                    root.noticeRequested("ok", qsTr("Verification code sent to %1 (Simulated Code: 849201)").arg(root.recoveryEmail))
-                    root.recoveryStage = "code"
+                    if (root.authService) {
+                        root.authService.requestRecoveryCode(root.recoveryEmail, function(success, data, errorMsg) {
+                            if (success) {
+                                var devNotice = (root.authService.mockMode && data && data.testCode) ? (" (Test Code: " + data.testCode + ")") : ""
+                                root.noticeRequested("ok", qsTr("Verification code sent to %1%2").arg(root.recoveryEmail).arg(devNotice))
+                                root.startResendCooldown()
+                                root.recoveryStage = "code"
+                            } else {
+                                root.noticeRequested("err", errorMsg)
+                            }
+                        })
+                    } else {
+                        root.noticeRequested("err", qsTr("Authentication service unavailable. Please check system link."))
+                    }
                 }
             }
         }
@@ -262,7 +328,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 implicitHeight: 36
                 text: root.recoveryCode
-                placeholderText: qsTr("849201")
+                placeholderText: qsTr("Enter 6-digit code")
                 placeholderTextColor: PulseGCSTokens.metaText(root.isOutdoor)
                 font.family: ScreenTools.fixedFontFamily
                 font.pixelSize: 15
@@ -284,9 +350,36 @@ ColumnLayout {
             }
         }
 
+        // Resend Cooldown Countdown (2 minutes)
         RowLayout {
             Layout.alignment: Qt.AlignHCenter
             spacing: 5
+            visible: root.resendCooldown > 0
+
+            Text {
+                text: qsTr("Resend code in")
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 11
+                color: PulseGCSTokens.mutedText(root.isOutdoor)
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                text: root.formattedCooldown
+                font.family: ScreenTools.normalFontFamily
+                font.pixelSize: 11
+                font.bold: true
+                color: PulseGCSTokens.accentColor(root.isOutdoor)
+                renderType: Text.QtRendering
+            }
+        }
+
+        // Resend Code Link (Shown once 2 minutes is done)
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            spacing: 5
+            visible: root.resendCooldown <= 0
+
             Text {
                 text: qsTr("Didn't receive code?")
                 font.family: ScreenTools.normalFontFamily
@@ -294,6 +387,7 @@ ColumnLayout {
                 color: PulseGCSTokens.mutedText(root.isOutdoor)
                 renderType: Text.QtRendering
             }
+
             Text {
                 text: qsTr("Resend Code")
                 font.family: ScreenTools.normalFontFamily
@@ -301,12 +395,25 @@ ColumnLayout {
                 font.bold: true
                 color: PulseGCSTokens.accentColor(root.isOutdoor)
                 renderType: Text.QtRendering
+
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         root.recoveryCode = ""
-                        root.noticeRequested("ok", qsTr("Verification code re-sent to %1 (Simulated Code: 849201)").arg(root.recoveryEmail.length > 0 ? root.recoveryEmail : qsTr("your email address")))
+                        root.startResendCooldown()
+                        if (root.authService) {
+                            root.authService.requestRecoveryCode(root.recoveryEmail, function(success, data, errorMsg) {
+                                if (success) {
+                                    var devNotice = (root.authService.mockMode && data && data.testCode) ? (" (Test Code: " + data.testCode + ")") : ""
+                                    root.noticeRequested("ok", qsTr("Verification code re-sent to %1%2").arg(root.recoveryEmail).arg(devNotice))
+                                } else {
+                                    root.noticeRequested("err", errorMsg)
+                                }
+                            })
+                        } else {
+                            root.noticeRequested("err", qsTr("Authentication service unavailable. Please check system link."))
+                        }
                     }
                 }
             }
@@ -351,22 +458,43 @@ ColumnLayout {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 implicitHeight: 36
-                text: qsTr("Verify Code ›")
+                enabled: !root.isBusy
+                text: root.isBusy ? qsTr("Verifying...") : qsTr("Verify Code ›")
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 11
                 font.bold: true
-                contentItem: Text {
-                    text: verifyCodeBtn.text
-                    font: verifyCodeBtn.font
-                    color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    renderType: Text.QtRendering
+                contentItem: Item {
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: root.isBusy ? 8 : 0
+
+                        PulseGCSCircularLoader {
+                            anchors.verticalCenter: parent.verticalCenter
+                            size: 16
+                            lineWidth: 2.0
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            running: root.isBusy
+                            visible: root.isBusy
+                            width: root.isBusy ? size : 0
+                            height: root.isBusy ? size : 0
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: verifyCodeBtn.text
+                            font: verifyCodeBtn.font
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            renderType: Text.QtRendering
+                        }
+                    }
                 }
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusButton
                     color: verifyCodeBtn.pressed ? PulseGCSTokens.accentHoverColor(root.isOutdoor)
                                                 : (root.isOutdoor ? PulseGCSTokens.outdoorAccentCore : PulseGCSTokens.accent)
+                    opacity: root.isBusy ? 0.75 : 1.0
                 }
                 onClicked: {
                     var codeCheck = PulseGCSAuthValidator.validateRecoveryCode(root.recoveryCode)
@@ -374,8 +502,19 @@ ColumnLayout {
                         root.noticeRequested("err", codeCheck.error)
                         return
                     }
-                    root.noticeRequested("", "")
-                    root.recoveryStage = "new_pw"
+                    if (root.authService) {
+                        root.authService.verifyRecoveryCode(root.recoveryEmail, root.recoveryCode, function(success, data, errorMsg) {
+                            if (success) {
+                                root.resetToken = (data && data.resetToken) ? data.resetToken : "rst_tok_local"
+                                root.noticeRequested("", "")
+                                root.recoveryStage = "new_pw"
+                            } else {
+                                root.noticeRequested("err", errorMsg)
+                            }
+                        })
+                    } else {
+                        root.noticeRequested("err", qsTr("Authentication service unavailable. Please check system link."))
+                    }
                 }
             }
         }
@@ -509,22 +648,43 @@ ColumnLayout {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 implicitHeight: 36
-                text: qsTr("Update Password")
+                enabled: !root.isBusy
+                text: root.isBusy ? qsTr("Updating...") : qsTr("Update Password")
                 font.family: ScreenTools.normalFontFamily
                 font.pixelSize: 11
                 font.bold: true
-                contentItem: Text {
-                    text: updatePwBtn.text
-                    font: updatePwBtn.font
-                    color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    renderType: Text.QtRendering
+                contentItem: Item {
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: root.isBusy ? 8 : 0
+
+                        PulseGCSCircularLoader {
+                            anchors.verticalCenter: parent.verticalCenter
+                            size: 16
+                            lineWidth: 2.0
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            running: root.isBusy
+                            visible: root.isBusy
+                            width: root.isBusy ? size : 0
+                            height: root.isBusy ? size : 0
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: updatePwBtn.text
+                            font: updatePwBtn.font
+                            color: root.isOutdoor ? "#FFFFFF" : PulseGCSTokens.ink
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            renderType: Text.QtRendering
+                        }
+                    }
                 }
                 background: Rectangle {
                     radius: PulseGCSTokens.radiusButton
                     color: updatePwBtn.pressed ? PulseGCSTokens.accentHoverColor(root.isOutdoor)
                                               : (root.isOutdoor ? PulseGCSTokens.outdoorAccentCore : PulseGCSTokens.accent)
+                    opacity: root.isBusy ? 0.75 : 1.0
                 }
                 onClicked: {
                     var matchCheck = PulseGCSAuthValidator.validatePasswordMatch(root.recoveryNewPw, root.recoveryConfirmPw)
@@ -532,8 +692,18 @@ ColumnLayout {
                         root.noticeRequested("err", matchCheck.error)
                         return
                     }
-                    root.noticeRequested("", "")
-                    root.recoveryCompleted()
+                    if (root.authService) {
+                        root.authService.resetPassword(root.recoveryEmail, root.resetToken, root.recoveryNewPw, function(success, data, errorMsg) {
+                            if (success) {
+                                root.noticeRequested("", "")
+                                root.recoveryCompleted()
+                            } else {
+                                root.noticeRequested("err", errorMsg)
+                            }
+                        })
+                    } else {
+                        root.noticeRequested("err", qsTr("Authentication service unavailable. Please check system link."))
+                    }
                 }
             }
         }
